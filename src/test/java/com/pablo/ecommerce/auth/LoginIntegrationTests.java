@@ -36,7 +36,10 @@ class LoginIntegrationTests {
                 .content("""
                         {"email":"ana@example.com","senha":"senha-segura"}
                         """))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.email").value("ana@example.com"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.expiresIn").value(900))
+                .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.senha").doesNotExist());
     }
 

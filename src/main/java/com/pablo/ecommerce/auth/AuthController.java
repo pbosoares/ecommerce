@@ -1,6 +1,8 @@
 package com.pablo.ecommerce.auth;
 
 import jakarta.validation.Valid;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -8,14 +10,17 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class AuthController {
     private final AuthService authService;
+    private final TokenService tokenService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, TokenService tokenService) {
         this.authService = authService;
+        this.tokenService = tokenService;
     }
 
     @PostMapping("/auth/login")
-    public LoginResponse login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
         var usuario = authService.autenticar(request);
-        return new LoginResponse(usuario.getId(), usuario.getNome(), usuario.getEmail());
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).header("Pragma", "no-cache")
+                .body(tokenService.emitir(usuario.getId()));
     }
 }
