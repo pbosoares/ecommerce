@@ -12,8 +12,8 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 
 public record ProdutoRequest(
-        @NotBlank String nome,
-        String descricao,
+        @NotBlank @Size(max = 160) String nome,
+        @Size(max = 4000) String descricao,
         @NotNull @Positive BigDecimal preco,
         @PositiveOrZero Integer estoque,
         @NotNull Long categoriaId,

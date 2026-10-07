@@ -27,3 +27,15 @@ export async function request(path, { token, ...options } = {}) {
 export const money = (value) => new Intl.NumberFormat('pt-BR', {
   style: 'currency', currency: 'BRL',
 }).format(Number(value || 0))
+
+export async function downloadFile(path, token, fallbackName) {
+  const response = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!response.ok) throw new Error(`Download indisponível (${response.status}).`)
+  const disposition = response.headers.get('Content-Disposition') || ''
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+  const name = encoded ? decodeURIComponent(encoded) : fallbackName
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url; link.download = name; document.body.append(link); link.click(); link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}

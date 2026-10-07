@@ -1,8 +1,10 @@
 package com.pablo.ecommerce.compra;
 
 import com.jayway.jsonpath.JsonPath;
+import java.time.Instant;
 import com.pablo.ecommerce.categoria.CategoriaRepository;
 import com.pablo.ecommerce.produto.ProdutoRepository;
+import com.pablo.ecommerce.produto.DigitalArquivoRepository;
 import com.pablo.ecommerce.usuario.Papel;
 import com.pablo.ecommerce.usuario.Usuario;
 import com.pablo.ecommerce.usuario.UsuarioRepository;
@@ -15,12 +17,13 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.mock.web.MockMultipartFile;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
+@SpringBootTest(properties = "app.digital.storage-path=target/test-digital-files")
 @AutoConfigureMockMvc
 class CompraIntegrationTests {
     @Autowired MockMvc mvc;
@@ -30,6 +33,8 @@ class CompraIntegrationTests {
     @Autowired CarrinhoItemRepository carrinhoItens;
     @Autowired PedidoRepository pedidos;
     @Autowired FaixaFreteRepository faixas;
+    @Autowired DigitalArquivoRepository arquivos;
+    @Autowired PedidoService pedidoService;
     @Autowired PasswordEncoder encoder;
     private String admin;
     private String ana;
@@ -58,6 +63,7 @@ class CompraIntegrationTests {
         pedidos.deleteAll();
         faixas.deleteAll();
         carrinhoItens.deleteAll();
+        arquivos.deleteAll();
         produtos.deleteAll();
         categorias.deleteAll();
         usuarios.deleteAll();
@@ -193,7 +199,88 @@ class CompraIntegrationTests {
     }
 
     @Test
-    void pedidoConfereEstoqueNovamenteSemReservar() throws Exception {
+    void reservaEstoqueEApenasCompradorPodeCancelarAntesDoCheckout() throws Exception {
+        Number id = produto("Ultimo", 30, 1, "FISICO");
+        mvc.perform(post("/carrinho/itens").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content(adicionar(id, 1)))
+                .andExpect(status().isOk());
+        var criado = mvc.perform(post("/pedidos").header("Authorization", ana)
+                .header("Idempotency-Key", "pedido-reserva-0001")
+                .contentType(MediaType.APPLICATION_JSON).content(endereco()))
+                .andExpect(status().isCreated()).andReturn();
+        Number pedidoId = JsonPath.read(criado.getResponse().getContentAsString(), "$.id");
+        mvc.perform(post("/pedidos").header("Authorization", ana)
+                .header("Idempotency-Key", "pedido-reserva-0001")
+                .contentType(MediaType.APPLICATION_JSON).content(endereco()))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.id").value(pedidoId));
+        assertThat(pedidos.count()).isEqualTo(1);
+        assertThat(produtos.findById(id.longValue()).orElseThrow().getEstoque()).isZero();
+        mvc.perform(post("/pedidos/{id}/cancelar", pedidoId).header("Authorization", bia))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/pedidos/{id}/checkout", pedidoId).header("Authorization", bia))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/pedidos/{id}/checkout", pedidoId).header("Authorization", ana))
+                .andExpect(status().isServiceUnavailable());
+        mvc.perform(post("/pedidos/{id}/cancelar", pedidoId).header("Authorization", ana))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELADO"));
+        assertThat(produtos.findById(id.longValue()).orElseThrow().getEstoque()).isEqualTo(1);
+        mvc.perform(post("/pedidos/{id}/cancelar", pedidoId).header("Authorization", ana))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void downloadDigitalExigeArquivoPagamentoEDonoDoPedido() throws Exception {
+        Number curso = produto("Guia", 25, 0, "DIGITAL");
+        MockMultipartFile arquivo = new MockMultipartFile("arquivo", "guia.txt", "text/plain",
+                "conteudo particular".getBytes());
+        mvc.perform(multipart("/produtos/{id}/arquivo", curso).file(arquivo).header("Authorization", ana))
+                .andExpect(status().isForbidden());
+        mvc.perform(multipart("/produtos/{id}/arquivo", curso).file(arquivo).header("Authorization", admin))
+                .andExpect(status().isNoContent());
+        mvc.perform(post("/carrinho/itens").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content(adicionar(curso, 1)))
+                .andExpect(status().isOk());
+        var criado = mvc.perform(post("/pedidos").header("Authorization", ana))
+                .andExpect(status().isCreated()).andReturn();
+        Number pedidoId = JsonPath.read(criado.getResponse().getContentAsString(), "$.id");
+        Number itemId = JsonPath.read(criado.getResponse().getContentAsString(), "$.itens[0].id");
+        mvc.perform(get("/pedidos/{id}/itens/{item}/download", pedidoId, itemId)
+                .header("Authorization", ana)).andExpect(status().isForbidden());
+        mvc.perform(get("/pedidos/{id}/itens/{item}/download", pedidoId, itemId)
+                .header("Authorization", bia)).andExpect(status().isNotFound());
+        var pedido = pedidos.findById(pedidoId.longValue()).orElseThrow();
+        pedido.setCheckoutSessionId("cs_test_download");
+        pedidos.saveAndFlush(pedido);
+        pedidoService.confirmarPagamento(pedidoId.longValue(), "cs_test_download", 2500, "brl");
+        mvc.perform(get("/pedidos/{id}/itens/{item}/download", pedidoId, itemId)
+                .header("Authorization", ana))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes("conteudo particular".getBytes()));
+    }
+
+    @Test
+    void pedidoSemCheckoutExpiraELiberaReservaUmaVez() throws Exception {
+        Number id = produto("Reservado", 30, 1, "FISICO");
+        mvc.perform(post("/carrinho/itens").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content(adicionar(id, 1)))
+                .andExpect(status().isOk());
+        var criado = mvc.perform(post("/pedidos").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content(endereco()))
+                .andExpect(status().isCreated()).andReturn();
+        Number pedidoId = JsonPath.read(criado.getResponse().getContentAsString(), "$.id");
+        var pedido = pedidos.findById(pedidoId.longValue()).orElseThrow();
+        pedido.setCriadoEm(Instant.now().minusSeconds(1900));
+        pedidos.saveAndFlush(pedido);
+        mvc.perform(post("/pedidos/{id}/checkout", pedidoId).header("Authorization", ana))
+                .andExpect(status().isConflict());
+        pedidoService.expirarSemCheckout(pedidoId.longValue());
+        pedidoService.expirarSemCheckout(pedidoId.longValue());
+        assertThat(pedidos.findById(pedidoId.longValue()).orElseThrow().getStatus()).isEqualTo(StatusPedido.EXPIRADO);
+        assertThat(produtos.findById(id.longValue()).orElseThrow().getEstoque()).isEqualTo(1);
+    }
+
+    @Test
+    void pedidoConfereEstoqueAntesDeReservar() throws Exception {
         Number livro = produto("Livro", 40, 2, "FISICO");
         mvc.perform(post("/carrinho/itens").header("Authorization", ana)
                 .contentType(MediaType.APPLICATION_JSON).content(adicionar(livro, 0)))

@@ -51,12 +51,15 @@ public class ProdutoService {
 
     @Transactional
     public void excluir(Long id) {
+        produtoRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Produto nao encontrado"));
         carrinhoItens.deleteByProdutoId(id);
         produtoRepository.deleteById(id);
     }
 
+    @Transactional
     public Produto atualizar(Long id, ProdutoRequest request) {
-        Produto produto = produtoRepository.findById(id)
+        Produto produto = produtoRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Produto nao encontrado"));
         preencher(produto, request);
         return persistir(produto);

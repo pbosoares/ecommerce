@@ -31,4 +31,6 @@ public class PedidoItem {
     @Setter @Enumerated(EnumType.STRING) private TipoProduto tipo;
     @Setter private BigDecimal precoUnitario;
     @Setter private BigDecimal subtotal;
+    @Setter private String arquivoKey;
+    @Setter private String arquivoNome;
 }

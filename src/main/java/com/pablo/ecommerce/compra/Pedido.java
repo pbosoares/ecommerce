@@ -16,11 +16,15 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Column;
 import lombok.Getter;
 import lombok.Setter;
 
 @Entity
 @Getter
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"usuario_id", "idempotency_key"}))
 public class Pedido {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -36,6 +40,26 @@ public class Pedido {
     @Setter
     @Enumerated(EnumType.STRING)
     private StatusPedido status;
+
+    @Setter
+    private boolean estoqueReservado;
+
+    @Setter
+    @Column(name = "idempotency_key", length = 80)
+    private String idempotencyKey;
+
+    @Setter
+    private String checkoutSessionId;
+
+    @Setter
+    @Column(length = 2048)
+    private String checkoutUrl;
+
+    @Setter
+    private String checkoutRequestKey;
+
+    @Setter
+    private Instant pagoEm;
 
     @Setter
     private BigDecimal subtotal;

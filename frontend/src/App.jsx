@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { money, request } from './api'
+import { downloadFile, money, request } from './api'
 
 const emptyAddress = { cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '' }
+const statusLabels = { AGUARDANDO_PAGAMENTO: 'Aguardando pagamento', PAGO: 'Pago', EM_PREPARACAO: 'Em preparação', ENVIADO: 'Enviado', ENTREGUE: 'Entregue', CANCELADO: 'Cancelado', EXPIRADO: 'Expirado' }
 
 function Icon({ name, size = 20, stroke = 1.8 }) {
   const paths = {
@@ -59,7 +60,7 @@ function ProductCard({ product, onOpen, onAdd }) {
       <span className="card-category">{product.categoria?.nome || 'Descobertas'}</span>
       <button className="card-title" onClick={() => onOpen(product)}>{product.nome}</button>
       <strong className="card-price">{money(product.preco)}</strong>
-      <span className="card-caption">{product.tipo === 'DIGITAL' ? 'Acesso após liberação' : 'Frete calculado no carrinho'}</span>
+      <span className="card-caption">{product.tipo === 'DIGITAL' ? 'Acesso após pagamento' : `${product.estoque} em estoque · frete no carrinho`}</span>
       <button className="card-add" onClick={() => onAdd(product)} disabled={product.tipo !== 'DIGITAL' && product.estoque < 1}>
         <Icon name="plus" size={18} /> {product.tipo !== 'DIGITAL' && product.estoque < 1 ? 'Indisponível' : 'Adicionar'}
       </button>
@@ -77,9 +78,9 @@ function AuthModal({ mode, setMode, onClose, onSubmit, busy }) {
     <h2>{signup ? 'Bom ter você por aqui.' : 'Que bom te ver de novo.'}</h2>
     <p className="muted">{signup ? 'Crie sua conta para guardar suas escolhas.' : 'Entre para continuar de onde parou.'}</p>
     <form onSubmit={(event) => { event.preventDefault(); onSubmit(form, signup) }} className="auth-form">
-      {signup && <label>Seu nome<input required autoComplete="name" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Como podemos te chamar?" /></label>}
-      <label>E-mail<input required type="email" autoComplete="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="voce@exemplo.com" /></label>
-      <label>Senha<input required type="password" minLength={8} autoComplete={signup ? 'new-password' : 'current-password'} value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} placeholder="Mínimo de 8 caracteres" /></label>
+      {signup && <label>Seu nome<input required maxLength={80} autoComplete="name" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Como podemos te chamar?" /></label>}
+      <label>E-mail<input required type="email" maxLength={254} autoComplete="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="voce@exemplo.com" /></label>
+      <label>Senha<input required type="password" minLength={8} maxLength={128} autoComplete={signup ? 'new-password' : 'current-password'} value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} placeholder="Mínimo de 8 caracteres" /></label>
       <button className="button button-dark full" disabled={busy}>{busy ? 'Aguarde…' : signup ? 'Criar minha conta' : 'Entrar na minha conta'} <Icon name="arrow" size={18} /></button>
     </form>
     <p className="auth-switch">{signup ? 'Já tem uma conta?' : 'Ainda não tem uma conta?'} <button onClick={() => setMode(signup ? 'login' : 'register')}>{signup ? 'Entrar' : 'Criar conta'}</button></p>
@@ -106,6 +107,7 @@ export default function App() {
   const [toast, setToast] = useState('')
   const [cep, setCep] = useState('')
   const [quote, setQuote] = useState(null)
+  const [orderKey, setOrderKey] = useState(() => sessionStorage.getItem('cazuma_order_key') || crypto.randomUUID())
   const [address, setAddress] = useState(emptyAddress)
 
   const notify = (message) => setToast(message)
@@ -133,6 +135,7 @@ export default function App() {
   const hasPhysical = cart?.itens?.some((item) => item.tipo === 'FISICO')
 
   const go = (next) => { setView(next); setSelected(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }
+  const rotateOrderKey = () => { const key = crypto.randomUUID(); sessionStorage.setItem('cazuma_order_key', key); setOrderKey(key) }
   const requireAccount = (product = null) => { setPendingProduct(product); setAuthMode('login'); setAuthOpen(true) }
   const perform = async (fn) => {
     setBusy(true)
@@ -144,7 +147,7 @@ export default function App() {
     if (!authToken) return requireAccount(product)
     await perform(async () => {
       const nextCart = await request('/carrinho/itens', { token: authToken, method: 'POST', body: JSON.stringify({ produtoId: product.id, quantidade: 1 }) })
-      setCart(nextCart); setQuote(null); setSelected(null); notify(`${product.nome} foi para o carrinho.`)
+      setCart(nextCart); setQuote(null); setSelected(null); rotateOrderKey(); notify(`${product.nome} foi para o carrinho.`)
     })
   }
   const submitAuth = (form, signup) => perform(async () => {
@@ -157,11 +160,11 @@ export default function App() {
   const changeQuantity = (item, quantity) => perform(async () => {
     if (quantity < 1) return removeItem(item)
     const nextCart = await request(`/carrinho/itens/${item.produtoId}`, { token, method: 'PUT', body: JSON.stringify({ quantidade: quantity }) })
-    setCart(nextCart); setQuote(null)
+    setCart(nextCart); setQuote(null); rotateOrderKey()
   })
   const removeItem = (item) => perform(async () => {
     await request(`/carrinho/itens/${item.produtoId}`, { token, method: 'DELETE' })
-    setCart(await request('/carrinho', { token })); setQuote(null)
+    setCart(await request('/carrinho', { token })); setQuote(null); rotateOrderKey()
   })
   const calculateShipping = () => perform(async () => {
     const clean = cep.replace(/\D/g, '')
@@ -172,10 +175,22 @@ export default function App() {
   const placeOrder = () => perform(async () => {
     if (hasPhysical && !quote) throw new Error('Calcule o frete antes de registrar o pedido.')
     const body = hasPhysical ? { entrega: { ...address, cep: cep.replace(/\D/g, ''), uf: address.uf.toUpperCase() } } : {}
-    const order = await request('/pedidos', { token, method: 'POST', body: JSON.stringify(body) })
+    const order = await request('/pedidos', { token, method: 'POST', headers: { 'Idempotency-Key': orderKey }, body: JSON.stringify(body) })
+    rotateOrderKey()
     setCart(await request('/carrinho', { token })); setQuote(null); setCep(''); setAddress(emptyAddress)
-    notify(`Pedido #${order.id} registrado. O pagamento ainda não está disponível.`)
     await loadOrders(); go('orders')
+    if (isDemo) { notify(`Pedido #${order.id} de demonstração registrado. Nenhuma cobrança foi feita.`); return }
+    try {
+      const session = await request(`/pedidos/${order.id}/checkout`, { token, method: 'POST' })
+      window.location.assign(session.url)
+    } catch (error) { notify(`Pedido #${order.id} registrado. ${error.message}`) }
+  })
+  const startCheckout = (order) => perform(async () => {
+    const session = await request(`/pedidos/${order.id}/checkout`, { token, method: 'POST' })
+    window.location.assign(session.url)
+  })
+  const baixarDigital = (order, item) => perform(async () => {
+    await downloadFile(`/pedidos/${order.id}/itens/${item.id}/download`, token, item.nome)
   })
   const loadOrders = async () => {
     if (!token) return requireAccount()
@@ -188,7 +203,7 @@ export default function App() {
     <header className="site-header">
       <div className="header-main container">
         <button className="brand" onClick={() => go('home')} aria-label="Cazuma, página inicial"><span className="brand-symbol">c<span className="brand-sun">●</span></span><span>cazuma<span className="brand-period">.</span></span></button>
-        <label className="search-box"><Icon name="search" size={21} /><input value={search} onChange={(event) => { setSearch(event.target.value); if (view !== 'home') go('home') }} placeholder="O que você está procurando?" aria-label="Buscar produtos" /><span className="search-shortcut">Buscar</span></label>
+        <label className="search-box"><Icon name="search" size={21} /><input maxLength={80} value={search} onChange={(event) => { setSearch(event.target.value); if (view !== 'home') go('home') }} placeholder="O que você está procurando?" aria-label="Buscar produtos" /><span className="search-shortcut">Buscar</span></label>
         <div className="header-actions">
           <button className="header-action account-action" aria-label={token ? 'Meus pedidos' : 'Entrar ou cadastrar'} onClick={() => token ? loadOrders() : requireAccount()}><Icon name="user" /><span>{token ? 'Meus pedidos' : 'Entrar / Cadastrar'}</span></button>
           <button className="header-action cart-action" aria-label={`Carrinho com ${count} itens`} onClick={() => go('cart')}><Icon name="bag" /><span>Carrinho</span>{count > 0 && <b className="cart-count">{count}</b>}</button>
@@ -225,13 +240,13 @@ export default function App() {
       {view === 'cart' && <section className="inner-page container"><button className="text-back" onClick={() => go('home')}><Icon name="back" size={18} /> Continuar explorando</button><div className="page-heading"><span className="eyebrow">SUAS ESCOLHAS</span><h1>Meu carrinho<span>.</span></h1><p>Confira tudo antes de registrar seu pedido.</p></div>
         {!token ? <div className="empty-state"><div className="empty-shape"><Icon name="user" size={42} /></div><h3>Entre para ver seu carrinho.</h3><p>Suas escolhas ficam vinculadas à sua conta.</p><button className="button button-dark" onClick={() => requireAccount()}>Entrar ou criar conta</button></div>
           : !cart?.itens?.length ? <div className="empty-state"><div className="empty-shape"><Icon name="bag" size={42} /></div><h3>Seu carrinho está vazio.</h3><p>Que tal encontrar algo especial na vitrine?</p><button className="button button-dark" onClick={() => go('home')}>Explorar produtos</button></div>
-            : <div className="cart-layout"><div className="cart-content"><div className="cart-items">{cart.itens.map((item) => { const product = products.find((entry) => entry.id === item.produtoId) || { nome: item.nome, tipo: item.tipo }; return <div className="cart-item" key={item.produtoId}><ProductVisual product={product} className="cart-visual" /><div className="cart-item-main"><span className="card-category">{item.tipo === 'DIGITAL' ? 'Produto digital' : 'Produto físico'}</span><strong>{item.nome}</strong><span>{money(item.precoUnitario)} cada</span><button className="remove-button" onClick={() => removeItem(item)} disabled={busy}><Icon name="trash" size={15} /> Remover</button></div><div className="cart-item-end"><strong>{money(item.subtotal)}</strong><div className="quantity-control"><button onClick={() => changeQuantity(item, item.quantidade - 1)} disabled={busy} aria-label={`Diminuir quantidade de ${item.nome}`}><Icon name="minus" size={16} /></button><span>{item.quantidade}</span><button onClick={() => changeQuantity(item, item.quantidade + 1)} disabled={busy} aria-label={`Aumentar quantidade de ${item.nome}`}><Icon name="plus" size={16} /></button></div></div></div> })}</div>
+            : <div className="cart-layout"><div className="cart-content"><div className="cart-items">{cart.itens.map((item) => { const product = products.find((entry) => entry.id === item.produtoId) || { nome: item.nome, tipo: item.tipo }; return <div className="cart-item" key={item.produtoId}><ProductVisual product={product} className="cart-visual" /><div className="cart-item-main"><span className="card-category">{item.tipo === 'DIGITAL' ? 'Produto digital' : 'Produto físico'}</span><strong>{item.nome}</strong><span>{money(item.precoUnitario)} cada</span><button className="remove-button" onClick={() => removeItem(item)} disabled={busy}><Icon name="trash" size={15} /> Remover</button></div><div className="cart-item-end"><strong>{money(item.subtotal)}</strong><div className="quantity-control"><button onClick={() => changeQuantity(item, item.quantidade - 1)} disabled={busy} aria-label={`Diminuir quantidade de ${item.nome}`}><Icon name="minus" size={16} /></button><span>{item.quantidade}</span><button onClick={() => changeQuantity(item, item.quantidade + 1)} disabled={busy || (item.tipo === 'FISICO' && item.quantidade >= product.estoque)} aria-label={`Aumentar quantidade de ${item.nome}`}><Icon name="plus" size={16} /></button></div></div></div> })}</div>
               {hasPhysical && <div className="checkout-card"><div className="checkout-title"><span className="checkout-icon"><Icon name="pin" /></span><div><h3>Para onde vamos enviar?</h3><p>Digite seu CEP para consultar o frete.</p></div></div><div className="cep-row"><input inputMode="numeric" maxLength={9} placeholder="00000-000" aria-label="CEP de entrega" value={cep} onChange={(e) => { setCep(e.target.value); setQuote(null) }} /><button className="button button-dark" onClick={calculateShipping} disabled={busy}>Calcular frete</button></div>{quote && <p className="quote-success"><Icon name="check" size={18} /> Frete para {quote.cep}: <strong>{money(quote.frete)}</strong></p>}</div>}
-              <div className="checkout-card"><div className="checkout-title"><span className="checkout-icon"><Icon name="package" /></span><div><h3>Dados para o pedido</h3><p>{hasPhysical ? 'Preencha o endereço de entrega.' : 'Produto digital: não precisa de endereço.'}</p></div></div>{hasPhysical && <div className="address-grid">{[['logradouro', 'Rua / avenida'], ['numero', 'Número'], ['complemento', 'Complemento'], ['bairro', 'Bairro'], ['cidade', 'Cidade'], ['uf', 'UF']].map(([key, label]) => <label key={key} className={`address-${key}`}>{label}<input required={key !== 'complemento'} maxLength={key === 'uf' ? 2 : undefined} value={address[key]} onChange={(e) => setAddress({ ...address, [key]: e.target.value })} placeholder={label} /></label>)}</div>}</div></div>
-              <aside className="order-summary"><h3>Resumo do pedido</h3><div><span>Produtos</span><strong>{money(cart.subtotal)}</strong></div><div><span>Frete</span><strong>{hasPhysical ? quote ? money(quote.frete) : 'Calcule com o CEP' : money(0)}</strong></div><div className="summary-total"><span>Total</span><strong>{hasPhysical && !quote ? 'Calcule o frete' : money(quote?.total ?? cart.subtotal)}</strong></div><p className="summary-note">Pagamento online ainda não está disponível. Registrar o pedido não faz cobrança.</p><button className="button button-dark full" disabled={busy || (hasPhysical && !quote)} onClick={placeOrder}>Registrar pedido <Icon name="arrow" size={19} /></button></aside></div>}
+              <div className="checkout-card"><div className="checkout-title"><span className="checkout-icon"><Icon name="package" /></span><div><h3>Dados para o pedido</h3><p>{hasPhysical ? 'Preencha o endereço de entrega.' : 'Produto digital: não precisa de endereço.'}</p></div></div>{hasPhysical && <div className="address-grid">{[['logradouro', 'Rua / avenida'], ['numero', 'Número'], ['complemento', 'Complemento'], ['bairro', 'Bairro'], ['cidade', 'Cidade'], ['uf', 'UF']].map(([key, label]) => <label key={key} className={`address-${key}`}>{label}<input required={key !== 'complemento'} maxLength={{ logradouro: 120, numero: 20, complemento: 120, bairro: 80, cidade: 80, uf: 2 }[key]} value={address[key]} onChange={(e) => setAddress({ ...address, [key]: e.target.value })} placeholder={label} /></label>)}</div>}</div></div>
+              <aside className="order-summary"><h3>Resumo do pedido</h3><div><span>Produtos</span><strong>{money(cart.subtotal)}</strong></div><div><span>Frete</span><strong>{hasPhysical ? quote ? money(quote.frete) : 'Calcule com o CEP' : money(0)}</strong></div><div className="summary-total"><span>Total</span><strong>{hasPhysical && !quote ? 'Calcule o frete' : money(quote?.total ?? cart.subtotal)}</strong></div><p className="summary-note">{isDemo ? 'Demonstração: registrar o pedido não faz cobrança.' : 'Você será direcionado ao pagamento seguro após registrar o pedido.'}</p><button className="button button-dark full" disabled={busy || (hasPhysical && !quote)} onClick={placeOrder}>{isDemo ? 'Simular pedido' : 'Ir para pagamento'} <Icon name="arrow" size={19} /></button></aside></div>}
       </section>}
 
-      {view === 'orders' && <section className="inner-page container"><button className="text-back" onClick={() => go('home')}><Icon name="back" size={18} /> Voltar à vitrine</button><div className="page-heading"><span className="eyebrow">SUA HISTÓRIA NA CAZUMA</span><h1>Meus pedidos<span>.</span></h1><p>Acompanhe os pedidos registrados na sua conta.</p></div>{orders.length ? <div className="orders-list">{orders.map((order) => <article className="order-card" key={order.id}><div className="order-card-head"><div><span className="eyebrow">PEDIDO #{order.id}</span><h3>{new Date(order.criadoEm).toLocaleDateString('pt-BR')}</h3></div><span className="status-pill">{order.status === 'AGUARDANDO_PAGAMENTO' ? 'Aguardando pagamento' : 'Aguardando frete'}</span></div><div className="order-names">{order.itens.map((item) => `${item.quantidade}× ${item.nome}`).join(' · ')}</div><div className="order-card-foot"><span>Frete: {money(order.frete)}</span><strong>Total: {money(order.total)}</strong></div></article>)}</div> : <div className="empty-state"><div className="empty-shape"><Icon name="package" size={42} /></div><h3>Nenhum pedido por enquanto.</h3><p>Quando você registrar um pedido, ele aparece aqui.</p><button className="button button-dark" onClick={() => go('home')}>Explorar produtos</button></div>}</section>}
+      {view === 'orders' && <section className="inner-page container"><button className="text-back" onClick={() => go('home')}><Icon name="back" size={18} /> Voltar à vitrine</button><div className="page-heading"><span className="eyebrow">SUA HISTÓRIA NA CAZUMA</span><h1>Meus pedidos<span>.</span></h1><p>Acompanhe os pedidos registrados na sua conta.</p></div>{orders.length ? <div className="orders-list">{orders.map((order) => <article className="order-card" key={order.id}><div className="order-card-head"><div><span className="eyebrow">PEDIDO #{order.id}</span><h3>{new Date(order.criadoEm).toLocaleDateString('pt-BR')}</h3></div><span className="status-pill">{statusLabels[order.status] || order.status}</span></div><div className="order-names">{order.itens.map((item) => `${item.quantidade}× ${item.nome}`).join(' · ')}</div><div className="order-card-foot"><span>Frete: {money(order.frete)}</span><strong>Total: {money(order.total)}</strong></div>{!isDemo && order.status === 'AGUARDANDO_PAGAMENTO' && <button className="button button-dark" onClick={() => startCheckout(order)} disabled={busy}>Pagar pedido</button>}{order.itens.filter((item) => item.tipo === 'DIGITAL').map((item) => <button key={item.id} className="button button-outline" onClick={() => baixarDigital(order, item)} disabled={busy || !['PAGO', 'EM_PREPARACAO', 'ENVIADO', 'ENTREGUE'].includes(order.status)}>Baixar {item.nome}</button>)}</article>)}</div> : <div className="empty-state"><div className="empty-shape"><Icon name="package" size={42} /></div><h3>Nenhum pedido por enquanto.</h3><p>Quando você registrar um pedido, ele aparece aqui.</p><button className="button button-dark" onClick={() => go('home')}>Explorar produtos</button></div>}</section>}
     </main>
 
     <footer className="site-footer"><div className="container footer-content"><div><div className="footer-brand">cazuma<span>.</span></div><p>Boas escolhas moram aqui.</p></div><div className="footer-right"><span>Feito para descobrir coisas boas.</span><span>© {new Date().getFullYear()} Cazuma</span></div></div></footer>

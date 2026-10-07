@@ -30,14 +30,18 @@ public class SecurityConfig {
                 .logout(logout -> logout.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/usuarios", "/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/webhooks/stripe").permitAll()
                         .requestMatchers(HttpMethod.GET, "/produtos", "/produtos/*", "/categorias").permitAll()
                         .requestMatchers(HttpMethod.POST, "/categorias").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/produtos").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/produtos/*/arquivo").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/produtos/*").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/produtos/*").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/frete/faixas").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/frete/faixas/*").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/frete/faixas").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/admin/pedidos").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/pedidos/*/status").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(resource -> resource.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
 

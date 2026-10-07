@@ -89,7 +89,7 @@ O catalogo nao depende de um fornecedor. `tipo` pode ser `FISICO` (padrao para p
 
 - Campos comuns: `nome`, `descricao`, `preco`, `categoriaId`, `sku` opcional e unico, ate dez URLs HTTP(S) em `imagens` e ate vinte pares em `atributos` (por exemplo, cor/tamanho ou idioma/formato).
 - Produtos fisicos exigem `estoque`. Informe `pesoGramas` para permitir a cotacao de frete; `alturaCm`, `larguraCm` e `comprimentoCm` continuam opcionais. Sem peso, a cotacao e o fechamento do pedido retornam `422`.
-- Produtos digitais nao usam estoque nem dimensoes de envio. O cadastro do tipo digital ainda nao entrega arquivos: isso dependera de pedidos pagos e acesso controlado.
+- Produtos digitais nao usam estoque nem dimensoes de envio. O administrador envia o arquivo com `POST /produtos/{id}/arquivo` (`multipart/form-data`, campo `arquivo`, ate 20 MB). O arquivo fica fora da pasta publica, em `DIGITAL_STORAGE_PATH`, e so pode ser baixado pelo comprador depois da confirmacao do pagamento.
 
 Em producao, as imagens sao URLs HTTP(S) cadastradas pelo administrador; a API ainda nao recebe arquivos nem hospeda imagens. As ilustracoes locais em `frontend/public/demo/` servem apenas ao catalogo ficticio. O frontend React fica separado da API Spring Boot.
 
@@ -117,4 +117,18 @@ O frete padrao da loja e **R$ 15,00** para qualquer CEP e peso de produtos fisic
 {"cepInicio":"00000000","cepFim":"09999999","pesoMinimoGramas":0,"pesoMaximoGramas":1000,"valor":15.00}
 ```
 
-`GET /frete/faixas` lista e `DELETE /frete/faixas/{id}` remove as faixas. As duas extremidades de CEP sao inclusivas; a faixa de peso aceita `pesoMinimoGramas < peso <= pesoMaximoGramas`. Faixas sobrepostas sao recusadas; fora das faixas cadastradas vale a tarifa padrao. A tarifa propria da loja nao consulta os Correios, nao promete preco ou prazo oficial e nao gera etiqueta. Itens guardam copia do nome, SKU, tipo e preco para preservar o historico. Nenhuma cobranca e feita e o estoque fisico nao e reservado ou reduzido nesta etapa; a disponibilidade e conferida novamente ao criar o pedido. Ainda faltam pagamento e entrega digital antes de aceitar vendas reais.
+`GET /frete/faixas` lista e `DELETE /frete/faixas/{id}` remove as faixas. As duas extremidades de CEP sao inclusivas; a faixa de peso aceita `pesoMinimoGramas < peso <= pesoMaximoGramas`. Faixas sobrepostas sao recusadas; fora das faixas cadastradas vale a tarifa padrao. A tarifa propria da loja nao consulta os Correios, nao promete preco ou prazo oficial e nao gera etiqueta. Itens guardam copia do nome, SKU, tipo e preco para preservar o historico.
+
+## Pagamento, estoque e entrega
+
+Ao criar um pedido, o servidor recalcula os precos e o frete e reserva o estoque fisico sob bloqueio de banco. Estoque insuficiente impede a compra. Envie um `Idempotency-Key` unico de 8 a 80 caracteres em `POST /pedidos` para que uma repeticao da mesma tentativa retorne o pedido original, sem criar outro. O frontend gera e conserva essa chave durante tentativas de envio. Alterar o carrinho inicia outra tentativa. Um pedido sem sessao de pagamento expira depois de 30 minutos; cancelamento antes do checkout e expiracao liberam a reserva uma unica vez.
+
+`POST /pedidos/{id}/checkout` cria ou devolve a sessao Stripe Checkout de um pedido do comprador. O frontend redireciona para a URL retornada. O retorno do navegador nao confirma pagamento: apenas `POST /webhooks/stripe`, com assinatura Stripe valida, pode mudar o pedido para `PAGO`, depois de conferir sessao, moeda BRL e valor. O webhook de expiracao libera o estoque. O administrador consulta `GET /admin/pedidos` e avanca `PATCH /pedidos/{id}/status` de `PAGO` para `EM_PREPARACAO`, `ENVIADO` e `ENTREGUE`. Nao ha estorno automatico nem integracao de etiqueta/rastreio.
+
+Para baixar um arquivo digital pago, o comprador usa `GET /pedidos/{pedidoId}/itens/{itemId}/download`. A API confere a identidade, o pedido e o pagamento; o arquivo nunca e exposto como URL publica. A troca do arquivo do produto preserva o arquivo associado a pedidos anteriores. A remocao fisica dos arquivos antigos requer uma politica de retencao/backup antes de operar em producao.
+
+Cada mudanca de estado gera uma notificacao persistida. O Spring Mail envia via SMTP em segundo plano e tenta novamente apos falhas. Configure `MAIL_HOST`, `MAIL_PORT` (padrao 587), `MAIL_USERNAME`, `MAIL_PASSWORD` e `EMAIL_FROM`; sem SMTP configurado, os e-mails ficam pendentes. Nao inclua senhas no repositorio.
+
+Para usar `prod`, configure tambem `DB_PASSWORD`, `JWT_SECRET`, `STRIPE_SECRET_KEY` (chave live), `STRIPE_WEBHOOK_SECRET`, `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL` (HTTPS) e `DIGITAL_STORAGE_PATH` privado e persistente. Cadastre no Stripe o endpoint HTTPS `/webhooks/stripe` para os eventos `checkout.session.completed`, `checkout.session.async_payment_succeeded` e `checkout.session.expired`. O perfil `demo` continua com produtos ficticios e simulacao sem cobranca; seus pedidos nao ficam pagos automaticamente.
+
+A API limita requisicoes por IP em memoria (login/cadastro: 10/min; leitura: 600/min; demais: 120/min) e valida tamanhos dos principais campos. Em varias instancias, use um limitador compartilhado no proxy. Antes de vender, ainda sao necessarios HTTPS no proxy, migracoes versionadas do banco, backup e restauracao testados, monitoramento/alertas, testes com credenciais Stripe/SMTP reais e uma revisao de seguranca de producao. Os testes automatizados nao garantem que o site seja inviolavel.
