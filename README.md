@@ -4,6 +4,16 @@ API Spring Boot com cadastro de usuarios, permissoes e catalogo de produtos fisi
 
 O frontend React da loja **Cazuma** fica em [`frontend/`](frontend/README.md). Para abrir a loja, execute `npm install` e `npm run dev` nessa pasta e visite `http://localhost:5173/`; abrir o arquivo `index.html` diretamente deixa os modulos React sem o servidor Vite. A API precisa estar em `localhost:8080` para carregar o catalogo e usar a conta e o carrinho.
 
+## Demonstracao sem PostgreSQL
+
+Para apresentar o projeto ou simular uma compra, inicie a API no perfil `demo`:
+
+```powershell
+.\mvnw.cmd "-Dspring-boot.run.profiles=demo" spring-boot:run
+```
+
+Em outro terminal, inicie o frontend com `npm install` e `npm run dev` dentro de `frontend/`. Abra `http://localhost:5173/`. O catalogo sera preenchido com seis produtos ficticios, fisicos e digitais, em quatro categorias. Crie uma conta ficticia na loja, adicione um produto ao carrinho, consulte o frete com um CEP e registre um pedido. O pedido fica em `AGUARDANDO_PAGAMENTO`; nao ha cobranca nem entrega digital. O banco H2 deste perfil fica apenas em memoria e todo o conteudo, inclusive contas e pedidos de teste, desaparece quando a API e encerrada. O perfil so escuta em `127.0.0.1` e nao deve ser usado como ambiente publico. Fora de `demo`, nenhum produto e inserido automaticamente.
+
 ## Executar e testar
 
 - Configure `DB_PASSWORD` para o PostgreSQL local (`localhost:5432/ecommerce`, usuario `postgres`).
@@ -81,7 +91,7 @@ O catalogo nao depende de um fornecedor. `tipo` pode ser `FISICO` (padrao para p
 - Produtos fisicos exigem `estoque`. Informe `pesoGramas` para permitir a cotacao de frete; `alturaCm`, `larguraCm` e `comprimentoCm` continuam opcionais. Sem peso, a cotacao e o fechamento do pedido retornam `422`.
 - Produtos digitais nao usam estoque nem dimensoes de envio. O cadastro do tipo digital ainda nao entrega arquivos: isso dependera de pedidos pagos e acesso controlado.
 
-As imagens sao URLs externas cadastradas pelo administrador; a API ainda nao recebe arquivos nem hospeda imagens. O frontend sera feito em React, separado da API Spring Boot.
+Em producao, as imagens sao URLs HTTP(S) cadastradas pelo administrador; a API ainda nao recebe arquivos nem hospeda imagens. As ilustracoes locais em `frontend/public/demo/` servem apenas ao catalogo ficticio. O frontend React fica separado da API Spring Boot.
 
 ## Carrinho e pedidos
 

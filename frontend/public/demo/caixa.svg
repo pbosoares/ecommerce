@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 400">
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#e7eeea"/><stop offset="1" stop-color="#d8e4e4"/></linearGradient><linearGradient id="box" x2="1" y2="1"><stop stop-color="#455d68"/><stop offset="1" stop-color="#213744"/></linearGradient><filter id="s"><feDropShadow dx="9" dy="13" stdDeviation="12" flood-color="#27404a" flood-opacity=".3"/></filter></defs>
+  <rect width="480" height="400" fill="url(#bg)"/><circle cx="112" cy="95" r="112" fill="#d0e2d1"/><ellipse cx="239" cy="343" rx="128" ry="18" fill="#90aaa9" opacity=".3"/>
+  <g filter="url(#s)" transform="rotate(-8 240 205)"><rect x="137" y="78" width="206" height="252" rx="34" fill="url(#box)"/><rect x="151" y="93" width="178" height="222" rx="26" fill="#314b57" stroke="#71848b" stroke-opacity=".5"/><circle cx="240" cy="174" r="56" fill="#203640" stroke="#91a7a7" stroke-width="8"/><circle cx="240" cy="174" r="35" fill="#547180"/><circle cx="240" cy="174" r="15" fill="#263d49"/><circle cx="240" cy="270" r="28" fill="#203640" stroke="#829e9d" stroke-width="6"/><circle cx="240" cy="270" r="12" fill="#4c6972"/></g>
+</svg>

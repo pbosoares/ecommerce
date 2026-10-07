@@ -89,6 +89,7 @@ function AuthModal({ mode, setMode, onClose, onSubmit, busy }) {
 export default function App() {
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
+  const isDemo = products.some((product) => product.nome.includes('· demonstração'))
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
@@ -204,6 +205,7 @@ export default function App() {
     </header>
 
     <main>
+      {isDemo && <div className="demo-notice container" role="status"><strong>Loja de demonstração</strong><span>Produtos fictícios para testar a compra. Nenhuma cobrança será feita.</span></div>}
       {view === 'home' && <>
         <section className="hero container">
           <div className="hero-copy"><span className="hero-kicker"><span /> A VITRINE DO SEU JEITO</span><h1>Seu próximo achado está <em>por aqui.</em></h1><p>Explore produtos para a vida real, ideias novas e escolhas que fazem sentido para você.</p><button className="button button-dark hero-button" onClick={() => document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' })}>Explorar produtos <Icon name="arrow" size={19} /></button><div className="hero-small-note"><span className="note-line" /> Simples de encontrar. Bom de escolher.</div></div>
