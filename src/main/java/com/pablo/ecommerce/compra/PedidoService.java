@@ -16,11 +16,14 @@ public class PedidoService {
     private final PedidoRepository pedidos;
     private final CarrinhoItemRepository itens;
     private final CarrinhoService carrinho;
+    private final FreteService frete;
 
-    public PedidoService(PedidoRepository pedidos, CarrinhoItemRepository itens, CarrinhoService carrinho) {
+    public PedidoService(PedidoRepository pedidos, CarrinhoItemRepository itens, CarrinhoService carrinho,
+            FreteService frete) {
         this.pedidos = pedidos;
         this.itens = itens;
         this.carrinho = carrinho;
+        this.frete = frete;
     }
 
     @Transactional
@@ -37,7 +40,7 @@ public class PedidoService {
         Pedido pedido = new Pedido();
         pedido.setUsuario(usuario);
         pedido.setCriadoEm(Instant.now());
-        pedido.setStatus(temFisico ? StatusPedido.AGUARDANDO_FRETE : StatusPedido.AGUARDANDO_PAGAMENTO);
+        pedido.setStatus(StatusPedido.AGUARDANDO_PAGAMENTO);
         if (temFisico) pedido.setEntrega(request.entrega().toEntity());
         BigDecimal subtotal = BigDecimal.ZERO;
         for (CarrinhoItem linha : linhas) {
@@ -55,7 +58,14 @@ public class PedidoService {
             pedido.adicionar(item);
         }
         pedido.setSubtotal(subtotal);
-        if (!temFisico) pedido.setTotal(subtotal);
+        if (temFisico) {
+            CotacaoFreteResponse cotacao = frete.cotar(linhas, pedido.getEntrega().getCep());
+            pedido.setFrete(cotacao.frete());
+            pedido.setTotal(cotacao.total());
+        } else {
+            pedido.setFrete(BigDecimal.ZERO);
+            pedido.setTotal(subtotal);
+        }
         Pedido salvo = pedidos.saveAndFlush(pedido);
         itens.deleteAll(linhas);
         itens.flush();

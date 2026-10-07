@@ -29,6 +29,7 @@ class CompraIntegrationTests {
     @Autowired ProdutoRepository produtos;
     @Autowired CarrinhoItemRepository carrinhoItens;
     @Autowired PedidoRepository pedidos;
+    @Autowired FaixaFreteRepository faixas;
     @Autowired PasswordEncoder encoder;
     private String admin;
     private String ana;
@@ -46,11 +47,16 @@ class CompraIntegrationTests {
                 .content("{\"nome\":\"Diversos\",\"slug\":\"diversos\"}"))
                 .andExpect(status().isOk()).andReturn();
         categoriaId = JsonPath.read(categoria.getResponse().getContentAsString(), "$.id");
+        mvc.perform(post("/frete/faixas").header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"cepInicio\":\"00000000\",\"cepFim\":\"99999999\",\"pesoMinimoGramas\":0,\"pesoMaximoGramas\":100000,\"valor\":15}"))
+                .andExpect(status().isCreated());
     }
 
     @AfterEach
     void limpar() {
         pedidos.deleteAll();
+        faixas.deleteAll();
         carrinhoItens.deleteAll();
         produtos.deleteAll();
         categorias.deleteAll();
@@ -75,7 +81,8 @@ class CompraIntegrationTests {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"nome\":\"" + nome + "\",\"preco\":" + preco
                         + ",\"estoque\":" + estoque + ",\"tipo\":\"" + tipo
-                        + "\",\"categoriaId\":" + categoriaId + "}"))
+                        + "\",\"categoriaId\":" + categoriaId
+                        + ("FISICO".equals(tipo) ? ",\"pesoGramas\":500" : "") + "}"))
                 .andExpect(status().isOk()).andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.id");
     }
@@ -134,10 +141,10 @@ class CompraIntegrationTests {
         var result = mvc.perform(post("/pedidos").header("Authorization", ana)
                 .contentType(MediaType.APPLICATION_JSON).content(endereco()))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("AGUARDANDO_FRETE"))
+                .andExpect(jsonPath("$.status").value("AGUARDANDO_PAGAMENTO"))
                 .andExpect(jsonPath("$.subtotal").value(180))
-                .andExpect(jsonPath("$.total").doesNotExist())
-                .andExpect(jsonPath("$.frete").doesNotExist())
+                .andExpect(jsonPath("$.total").value(195))
+                .andExpect(jsonPath("$.frete").value(15))
                 .andExpect(jsonPath("$.entrega.cep").value("01001000"))
                 .andReturn();
         Number pedidoId = JsonPath.read(result.getResponse().getContentAsString(), "$.id");
@@ -164,6 +171,11 @@ class CompraIntegrationTests {
         mvc.perform(post("/carrinho/itens").header("Authorization", ana)
                 .contentType(MediaType.APPLICATION_JSON).content(adicionar(curso, 1)))
                 .andExpect(status().isOk());
+        mvc.perform(post("/frete/cotacoes").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"cep\":\"01001000\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.pesoGramas").value(0))
+                .andExpect(jsonPath("$.frete").value(0))
+                .andExpect(jsonPath("$.total").value(50));
         var result = mvc.perform(post("/pedidos").header("Authorization", ana))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("AGUARDANDO_PAGAMENTO"))
                 .andExpect(jsonPath("$.total").value(50)).andReturn();
@@ -202,5 +214,90 @@ class CompraIntegrationTests {
         assertThat(pedidos.count()).isZero();
         mvc.perform(get("/carrinho").header("Authorization", ana))
                 .andExpect(jsonPath("$.itens.length()").value(1));
+    }
+
+    @Test
+    void cotacaoExigeAutenticacaoUsaPesoDosFisicosEProtegeTabela() throws Exception {
+        Number livro = produto("Livro", 40, 5, "FISICO");
+        Number curso = produto("Curso", 50, 0, "DIGITAL");
+        for (Number id : new Number[]{livro, curso}) {
+            mvc.perform(post("/carrinho/itens").header("Authorization", ana)
+                    .contentType(MediaType.APPLICATION_JSON).content(adicionar(id, 2)))
+                    .andExpect(status().isOk());
+        }
+        mvc.perform(post("/frete/cotacoes").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"cep\":\"01001000\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/frete/cotacoes").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"cep\":\"123\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/frete/cotacoes").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"cep\":\"01001000\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.pesoGramas").value(1000))
+                .andExpect(jsonPath("$.subtotal").value(180))
+                .andExpect(jsonPath("$.frete").value(15))
+                .andExpect(jsonPath("$.total").value(195));
+        mvc.perform(post("/frete/cotacoes").header("Authorization", bia)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"cep\":\"01001000\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/frete/faixas").header("Authorization", ana)).andExpect(status().isForbidden());
+        mvc.perform(post("/frete/faixas").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"cepInicio\":\"00000000\",\"cepFim\":\"99999999\",\"pesoMinimoGramas\":0,\"pesoMaximoGramas\":1000,\"valor\":1}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/frete/faixas").header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"cepInicio\":\"00000000\",\"cepFim\":\"99999999\",\"pesoMinimoGramas\":0,\"pesoMaximoGramas\":1000,\"valor\":1}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void semTarifaOuPesoNaoFechaPedidoNemEsvaziaCarrinho() throws Exception {
+        Number livro = produto("Livro", 40, 5, "FISICO");
+        mvc.perform(post("/carrinho/itens").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content(adicionar(livro, 1)))
+                .andExpect(status().isOk());
+        faixas.deleteAll();
+        mvc.perform(post("/pedidos").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content(endereco()))
+                .andExpect(status().isUnprocessableContent());
+        assertThat(pedidos.count()).isZero();
+        mvc.perform(get("/carrinho").header("Authorization", ana))
+                .andExpect(jsonPath("$.itens.length()").value(1));
+        mvc.perform(put("/produtos/{id}", livro).header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nome\":\"Livro\",\"preco\":40,\"estoque\":5,\"categoriaId\":" + categoriaId + "}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/frete/cotacoes").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"cep\":\"01001000\"}"))
+                .andExpect(status().isUnprocessableContent());
+    }
+
+    @Test
+    void faixasEscolhemTarifaPorCepEPeso() throws Exception {
+        faixas.deleteAll();
+        for (String faixa : new String[]{
+                "{\"cepInicio\":\"01000000\",\"cepFim\":\"01999999\",\"pesoMinimoGramas\":0,\"pesoMaximoGramas\":500,\"valor\":10}",
+                "{\"cepInicio\":\"01000000\",\"cepFim\":\"01999999\",\"pesoMinimoGramas\":500,\"pesoMaximoGramas\":1000,\"valor\":20}"}) {
+            mvc.perform(post("/frete/faixas").header("Authorization", admin)
+                    .contentType(MediaType.APPLICATION_JSON).content(faixa))
+                    .andExpect(status().isCreated());
+        }
+        Number livro = produto("Livro", 40, 5, "FISICO");
+        mvc.perform(post("/carrinho/itens").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content(adicionar(livro, 1)))
+                .andExpect(status().isOk());
+        mvc.perform(post("/frete/cotacoes").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"cep\":\"01001000\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.frete").value(10));
+        mvc.perform(put("/carrinho/itens/{id}", livro).header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"quantidade\":2}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/frete/cotacoes").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"cep\":\"01001000\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.frete").value(20));
+        mvc.perform(post("/frete/cotacoes").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"cep\":\"20000000\"}"))
+                .andExpect(status().isUnprocessableContent());
     }
 }

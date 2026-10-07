@@ -76,7 +76,7 @@ Use `POST /produtos` para criar e `PUT /produtos/{id}` para atualizar, ambos com
 O catalogo nao depende de um fornecedor. `tipo` pode ser `FISICO` (padrao para produtos antigos) ou `DIGITAL`.
 
 - Campos comuns: `nome`, `descricao`, `preco`, `categoriaId`, `sku` opcional e unico, ate dez URLs HTTP(S) em `imagens` e ate vinte pares em `atributos` (por exemplo, cor/tamanho ou idioma/formato).
-- Produtos fisicos exigem `estoque` e podem informar `pesoGramas`, `alturaCm`, `larguraCm` e `comprimentoCm` para uma futura cotacao de frete.
+- Produtos fisicos exigem `estoque`. Informe `pesoGramas` para permitir a cotacao de frete; `alturaCm`, `larguraCm` e `comprimentoCm` continuam opcionais. Sem peso, a cotacao e o fechamento do pedido retornam `422`.
 - Produtos digitais nao usam estoque nem dimensoes de envio. O cadastro do tipo digital ainda nao entrega arquivos: isso dependera de pedidos pagos e acesso controlado.
 
 As imagens sao URLs externas cadastradas pelo administrador; a API ainda nao recebe arquivos nem hospeda imagens. O frontend sera feito em React, separado da API Spring Boot.
@@ -97,4 +97,12 @@ Se houver algum produto fisico, `POST /pedidos` exige endereco:
 {"entrega":{"cep":"01001000","logradouro":"Praca da Se","numero":"1","bairro":"Se","cidade":"Sao Paulo","uf":"SP"}}
 ```
 
-Pedidos fisicos ficam em `AGUARDANDO_FRETE`, com `frete` e `total` ainda nulos. Pedidos somente digitais ficam em `AGUARDANDO_PAGAMENTO`, com total igual ao subtotal. Itens guardam copia do nome, SKU, tipo e preco para preservar o historico. Nenhuma cobranca e feita e o estoque fisico nao e reservado ou reduzido nesta etapa; a disponibilidade e conferida novamente ao criar o pedido. Ainda faltam cotacao de frete, pagamento e entrega digital antes de aceitar vendas reais.
+Antes de finalizar, `POST /frete/cotacoes` com `{"cep":"01001000"}` retorna o peso dos itens fisicos, subtotal, frete e total do carrinho atual. Itens digitais nao entram no peso. O valor e apenas uma consulta: o servidor recalcula tudo ao criar o pedido. `POST /pedidos` usa o CEP do endereco de entrega, grava o frete e o total e deixa o pedido em `AGUARDANDO_PAGAMENTO`. Pedidos somente digitais tem frete zero e total igual ao subtotal. Se nao houver uma faixa aplicavel ou algum produto fisico nao tiver peso, a API retorna `422` sem criar o pedido nem esvaziar o carrinho.
+
+O administrador configura tarifas proprias da loja em `POST /frete/faixas`:
+
+```json
+{"cepInicio":"00000000","cepFim":"09999999","pesoMinimoGramas":0,"pesoMaximoGramas":1000,"valor":15.00}
+```
+
+`GET /frete/faixas` lista e `DELETE /frete/faixas/{id}` remove as faixas. As duas extremidades de CEP sao inclusivas; a faixa de peso aceita `pesoMinimoGramas < peso <= pesoMaximoGramas`. Faixas sobrepostas sao recusadas. Nao ha tarifa padrao: o administrador precisa cadastrar as faixas conforme os custos reais da loja. Esta tabela nao consulta os Correios, nao promete preco ou prazo oficial e nao gera etiqueta. Itens guardam copia do nome, SKU, tipo e preco para preservar o historico. Nenhuma cobranca e feita e o estoque fisico nao e reservado ou reduzido nesta etapa; a disponibilidade e conferida novamente ao criar o pedido. Ainda faltam pagamento e entrega digital antes de aceitar vendas reais.
