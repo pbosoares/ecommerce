@@ -1,6 +1,6 @@
 # E-commerce
 
-API Spring Boot com cadastro de usuarios e CRUD de produtos. Requer Java 21 ou superior.
+API Spring Boot com cadastro de usuarios, permissoes e catalogo de produtos por categoria. Requer Java 21 ou superior.
 
 ## Executar e testar
 
@@ -37,7 +37,7 @@ O e-mail e comparado exatamente como no cadastro.
 
 ## Endpoints protegidos
 
-`POST /usuarios`, `POST /auth/login` e `GET /produtos` (inclusive por ID) sao publicos. Apenas administradores podem criar, atualizar ou excluir produtos. Os demais endpoints exigem autenticacao:
+`POST /usuarios`, `POST /auth/login`, `GET /categorias` e `GET /produtos` (inclusive por ID) sao publicos. Apenas administradores podem criar categorias e criar, atualizar ou excluir produtos. Os demais endpoints exigem autenticacao:
 
 ```http
 Authorization: Bearer <accessToken>
@@ -54,3 +54,21 @@ UPDATE usuario SET papel = 'ADMIN' WHERE email = 'admin@exemplo.com';
 Substitua o e-mail pelo da conta desejada. Faca login novamente apos a promocao; o papel fica no JWT assinado. Uma alteracao de papel passa a valer para novos tokens; tokens anteriores expiram em ate 15 minutos. Nao ha refresh token nem revogacao individual. Use HTTPS fora do ambiente local.
 
 Os testes cobrem login com Argon2, validacao de entrada, CRUD com JWT, bloqueio sem token, adulteracao, assinatura incorreta, emissor incorreto, expiracao e ausencia de sessao.
+
+## Categorias no catalogo
+
+O administrador cria uma categoria com `POST /categorias`:
+
+```json
+{"nome":"Eletronicos","slug":"eletronicos"}
+```
+
+O `slug` e unico e usa letras minusculas, numeros e hifens. `GET /categorias` fornece a lista para montar as abas. Produtos novos precisam do ID de uma categoria:
+
+```json
+{"nome":"Fone","descricao":"Sem fio","preco":99.90,"estoque":5,"categoriaId":1}
+```
+
+Use `POST /produtos` para criar e `PUT /produtos/{id}` para atualizar, ambos com o corpo acima. `GET /produtos?categoria=eletronicos` lista apenas a aba dessa categoria; `GET /produtos` lista todos. Categorias desconhecidas retornam uma lista vazia. Produtos cadastrados antes desta mudanca permanecem visiveis na lista geral sem categoria; um administrador pode atribuir categoria ao atualiza-los.
+
+A pagina publica `/` mostra o catalogo com uma aba para cada categoria e permite compartilhar o filtro na URL (`/?categoria=eletronicos`). A pagina exibe disponibilidade, mas ainda nao existe carrinho, checkout ou calculo de frete.

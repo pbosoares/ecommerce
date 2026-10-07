@@ -5,6 +5,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import com.jayway.jsonpath.JsonPath;
 import com.pablo.ecommerce.produto.ProdutoRepository;
+import com.pablo.ecommerce.categoria.CategoriaRepository;
 import com.pablo.ecommerce.usuario.Usuario;
 import com.pablo.ecommerce.usuario.Papel;
 import com.pablo.ecommerce.usuario.UsuarioRepository;
@@ -30,6 +31,7 @@ class JwtIntegrationTests {
     @Autowired MockMvc mvc;
     @Autowired UsuarioRepository usuarios;
     @Autowired ProdutoRepository produtos;
+    @Autowired CategoriaRepository categorias;
     @Autowired PasswordEncoder passwords;
     @Autowired JwtEncoder encoder;
     @Autowired JwtDecoder decoder;
@@ -38,6 +40,7 @@ class JwtIntegrationTests {
     @BeforeEach
     void preparar() {
         produtos.deleteAll();
+        categorias.deleteAll();
         usuarios.deleteAll();
         Usuario usuario = new Usuario();
         usuario.setNome("Ana");
@@ -89,7 +92,12 @@ class JwtIntegrationTests {
     @Test
     void tokenValidoPermiteCrudCompleto() throws Exception {
         String bearer = "Bearer " + login();
-        String body = "{\"nome\":\"Teclado\",\"descricao\":\"USB\",\"preco\":100,\"estoque\":2}";
+        var category = mvc.perform(post("/categorias").header("Authorization", bearer)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Perifericos\",\"slug\":\"perifericos\"}"))
+                .andExpect(status().isOk()).andReturn();
+        Number categoryId = JsonPath.read(category.getResponse().getContentAsString(), "$.id");
+        String body = "{\"nome\":\"Teclado\",\"descricao\":\"USB\",\"preco\":100,\"estoque\":2,\"categoriaId\":" + categoryId + "}";
         var created = mvc.perform(post("/produtos").header("Authorization", bearer)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk()).andReturn();

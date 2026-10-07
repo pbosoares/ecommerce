@@ -1,7 +1,6 @@
 package com.pablo.ecommerce.produto;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -12,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import jakarta.validation.Valid;
 
@@ -25,8 +25,8 @@ public class ProdutoController {
     }
 
     @GetMapping
-    public List<Produto> listarTodos() {
-        return produtoService.listarTodos();
+    public List<Produto> listarTodos(@RequestParam(required = false) String categoria) {
+        return categoria == null ? produtoService.listarTodos() : produtoService.listarPorCategoria(categoria);
 
     }
 
@@ -42,16 +42,15 @@ public class ProdutoController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @Valid
     @PostMapping
-    public Produto salvar(@RequestBody Produto produto) {
+    public Produto salvar(@Valid @RequestBody ProdutoRequest produto) {
         return produtoService.salvar(produto);
     }
 
     @PutMapping("/{id}")
     public Produto atualizar(
             @PathVariable Long id,
-            @Valid @RequestBody Produto produtoAtualizado) {
+            @Valid @RequestBody ProdutoRequest produtoAtualizado) {
         return produtoService.atualizar(id, produtoAtualizado);
 
     }
