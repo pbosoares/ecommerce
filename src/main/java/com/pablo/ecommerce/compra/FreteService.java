@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import com.pablo.ecommerce.produto.Produto;
 import com.pablo.ecommerce.produto.TipoProduto;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,11 +15,15 @@ public class FreteService {
     private final FaixaFreteRepository faixas;
     private final CarrinhoItemRepository itens;
     private final CarrinhoService carrinho;
+    private final BigDecimal valorPadrao;
 
-    public FreteService(FaixaFreteRepository faixas, CarrinhoItemRepository itens, CarrinhoService carrinho) {
+    public FreteService(FaixaFreteRepository faixas, CarrinhoItemRepository itens, CarrinhoService carrinho,
+            @Value("${app.frete.valor-padrao}") BigDecimal valorPadrao) {
         this.faixas = faixas;
         this.itens = itens;
         this.carrinho = carrinho;
+        if (valorPadrao.signum() < 0) throw new IllegalArgumentException("Frete padrao nao pode ser negativo");
+        this.valorPadrao = valorPadrao;
     }
 
     @Transactional
@@ -84,9 +89,7 @@ public class FreteService {
                             && faixa.getCepFim().compareTo(cep) >= 0
                             && pesoFinal > faixa.getPesoMinimoGramas()
                             && pesoFinal <= faixa.getPesoMaximoGramas())
-                    .map(FaixaFrete::getValor).findFirst()
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT,
-                            "Frete indisponivel para CEP e peso informados"));
+                    .map(FaixaFrete::getValor).findFirst().orElse(valorPadrao);
         }
         return new CotacaoFreteResponse(cep, peso, subtotal, frete, subtotal.add(frete));
     }

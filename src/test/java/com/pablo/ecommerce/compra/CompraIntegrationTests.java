@@ -252,15 +252,15 @@ class CompraIntegrationTests {
     }
 
     @Test
-    void semTarifaOuPesoNaoFechaPedidoNemEsvaziaCarrinho() throws Exception {
+    void tarifaPadraoFuncionaSemFaixasEMasProdutoSemPesoNaoFechaPedido() throws Exception {
         Number livro = produto("Livro", 40, 5, "FISICO");
         mvc.perform(post("/carrinho/itens").header("Authorization", ana)
                 .contentType(MediaType.APPLICATION_JSON).content(adicionar(livro, 1)))
                 .andExpect(status().isOk());
         faixas.deleteAll();
-        mvc.perform(post("/pedidos").header("Authorization", ana)
-                .contentType(MediaType.APPLICATION_JSON).content(endereco()))
-                .andExpect(status().isUnprocessableContent());
+        mvc.perform(post("/frete/cotacoes").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"cep\":\"01001000\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.frete").value(15));
         assertThat(pedidos.count()).isZero();
         mvc.perform(get("/carrinho").header("Authorization", ana))
                 .andExpect(jsonPath("$.itens.length()").value(1));
@@ -271,6 +271,21 @@ class CompraIntegrationTests {
         mvc.perform(post("/frete/cotacoes").header("Authorization", ana)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"cep\":\"01001000\"}"))
                 .andExpect(status().isUnprocessableContent());
+        mvc.perform(post("/pedidos").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content(endereco()))
+                .andExpect(status().isUnprocessableContent());
+        assertThat(pedidos.count()).isZero();
+        mvc.perform(get("/carrinho").header("Authorization", ana))
+                .andExpect(jsonPath("$.itens.length()").value(1));
+        mvc.perform(put("/produtos/{id}", livro).header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nome\":\"Livro\",\"preco\":40,\"estoque\":5,\"categoriaId\":" + categoriaId
+                        + ",\"pesoGramas\":500}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/pedidos").header("Authorization", ana)
+                .contentType(MediaType.APPLICATION_JSON).content(endereco()))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.frete").value(15))
+                .andExpect(jsonPath("$.total").value(55));
     }
 
     @Test
@@ -298,6 +313,6 @@ class CompraIntegrationTests {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.frete").value(20));
         mvc.perform(post("/frete/cotacoes").header("Authorization", ana)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"cep\":\"20000000\"}"))
-                .andExpect(status().isUnprocessableContent());
+                .andExpect(status().isOk()).andExpect(jsonPath("$.frete").value(15));
     }
 }

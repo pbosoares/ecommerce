@@ -97,12 +97,12 @@ Se houver algum produto fisico, `POST /pedidos` exige endereco:
 {"entrega":{"cep":"01001000","logradouro":"Praca da Se","numero":"1","bairro":"Se","cidade":"Sao Paulo","uf":"SP"}}
 ```
 
-Antes de finalizar, `POST /frete/cotacoes` com `{"cep":"01001000"}` retorna o peso dos itens fisicos, subtotal, frete e total do carrinho atual. Itens digitais nao entram no peso. O valor e apenas uma consulta: o servidor recalcula tudo ao criar o pedido. `POST /pedidos` usa o CEP do endereco de entrega, grava o frete e o total e deixa o pedido em `AGUARDANDO_PAGAMENTO`. Pedidos somente digitais tem frete zero e total igual ao subtotal. Se nao houver uma faixa aplicavel ou algum produto fisico nao tiver peso, a API retorna `422` sem criar o pedido nem esvaziar o carrinho.
+Antes de finalizar, `POST /frete/cotacoes` com `{"cep":"01001000"}` retorna o peso dos itens fisicos, subtotal, frete e total do carrinho atual. Itens digitais nao entram no peso. O valor e apenas uma consulta: o servidor recalcula tudo ao criar o pedido. `POST /pedidos` usa o CEP do endereco de entrega, grava o frete e o total e deixa o pedido em `AGUARDANDO_PAGAMENTO`. Pedidos somente digitais tem frete zero e total igual ao subtotal. Se algum produto fisico nao tiver peso, a API retorna `422` sem criar o pedido nem esvaziar o carrinho.
 
-O administrador configura tarifas proprias da loja em `POST /frete/faixas`:
+O frete padrao da loja e **R$ 15,00** para qualquer CEP e peso de produtos fisicos, configurado por `app.frete.valor-padrao`. O administrador pode criar tarifas especificas em `POST /frete/faixas` para substituir esse padrao em determinadas faixas de CEP e peso:
 
 ```json
 {"cepInicio":"00000000","cepFim":"09999999","pesoMinimoGramas":0,"pesoMaximoGramas":1000,"valor":15.00}
 ```
 
-`GET /frete/faixas` lista e `DELETE /frete/faixas/{id}` remove as faixas. As duas extremidades de CEP sao inclusivas; a faixa de peso aceita `pesoMinimoGramas < peso <= pesoMaximoGramas`. Faixas sobrepostas sao recusadas. Nao ha tarifa padrao: o administrador precisa cadastrar as faixas conforme os custos reais da loja. Esta tabela nao consulta os Correios, nao promete preco ou prazo oficial e nao gera etiqueta. Itens guardam copia do nome, SKU, tipo e preco para preservar o historico. Nenhuma cobranca e feita e o estoque fisico nao e reservado ou reduzido nesta etapa; a disponibilidade e conferida novamente ao criar o pedido. Ainda faltam pagamento e entrega digital antes de aceitar vendas reais.
+`GET /frete/faixas` lista e `DELETE /frete/faixas/{id}` remove as faixas. As duas extremidades de CEP sao inclusivas; a faixa de peso aceita `pesoMinimoGramas < peso <= pesoMaximoGramas`. Faixas sobrepostas sao recusadas; fora das faixas cadastradas vale a tarifa padrao. A tarifa propria da loja nao consulta os Correios, nao promete preco ou prazo oficial e nao gera etiqueta. Itens guardam copia do nome, SKU, tipo e preco para preservar o historico. Nenhuma cobranca e feita e o estoque fisico nao e reservado ou reduzido nesta etapa; a disponibilidade e conferida novamente ao criar o pedido. Ainda faltam pagamento e entrega digital antes de aceitar vendas reais.
