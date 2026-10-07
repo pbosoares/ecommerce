@@ -6,6 +6,7 @@ import javax.crypto.spec.SecretKeySpec;
 import com.jayway.jsonpath.JsonPath;
 import com.pablo.ecommerce.produto.ProdutoRepository;
 import com.pablo.ecommerce.usuario.Usuario;
+import com.pablo.ecommerce.usuario.Papel;
 import com.pablo.ecommerce.usuario.UsuarioRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,7 @@ class JwtIntegrationTests {
         usuario.setNome("Ana");
         usuario.setEmail("ana@example.com");
         usuario.setSenha(passwords.encode("senha-segura"));
+        usuario.setPapel(Papel.ADMIN);
         usuarioId = usuarios.save(usuario).getId();
     }
 
@@ -70,13 +72,14 @@ class JwtIntegrationTests {
     }
 
     @Test
-    void crudExigeTokenEmTodosOsEndpoints() throws Exception {
-        for (HttpMethod method : new HttpMethod[]{HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE}) {
+    void escritaExigeTokenMasCatalogoEPublico() throws Exception {
+        for (HttpMethod method : new HttpMethod[]{HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE}) {
             String path = method == HttpMethod.PUT || method == HttpMethod.DELETE ? "/produtos/1" : "/produtos";
             mvc.perform(request(method, path).contentType(MediaType.APPLICATION_JSON).content("{}"))
                     .andExpect(status().isUnauthorized());
         }
-        mvc.perform(get("/produtos/1")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/produtos")).andExpect(status().isOk());
+        mvc.perform(get("/produtos/1")).andExpect(status().isNotFound());
         mvc.perform(get("/usuarios")).andExpect(status().isUnauthorized());
         mvc.perform(get("/auth/login")).andExpect(status().isUnauthorized());
         mvc.perform(get("/outro-endpoint")).andExpect(status().isUnauthorized());
@@ -109,7 +112,7 @@ class JwtIntegrationTests {
                 assinar(encoder, "outro", Instant.now().plusSeconds(300), "1"),
                 assinar(encoder, "ecommerce", null, "1"),
                 assinar(encoder, "ecommerce", Instant.now().plusSeconds(300), "")}) {
-            mvc.perform(get("/produtos").header("Authorization", "Bearer " + token))
+            mvc.perform(post("/produtos").header("Authorization", "Bearer " + token))
                     .andExpect(status().isUnauthorized());
         }
     }
@@ -124,7 +127,7 @@ class JwtIntegrationTests {
                 .encodeToString("{\"sub\":\"999\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8)) + "." + parts[2];
         for (String invalid : new String[]{"invalido", tampered,
                 assinar(otherEncoder, "ecommerce", Instant.now().plusSeconds(300), "1")}) {
-            mvc.perform(get("/produtos").header("Authorization", "Bearer " + invalid))
+            mvc.perform(post("/produtos").header("Authorization", "Bearer " + invalid))
                     .andExpect(status().isUnauthorized());
         }
     }
@@ -135,8 +138,39 @@ class JwtIntegrationTests {
         var result = mvc.perform(get("/produtos").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk()).andReturn();
         assertThat(result.getRequest().getSession(false)).isNull();
-        mvc.perform(get("/produtos")).andExpect(status().isUnauthorized());
-        mvc.perform(get("/produtos").header("Authorization", "Basic YW5hOnNlbmhh"))
+        mvc.perform(post("/produtos")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/produtos").header("Authorization", "Basic YW5hOnNlbmhh"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void cadastroPublicoNaoPodeCriarAdministrador() throws Exception {
+        mvc.perform(post("/usuarios").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nome\":\"Bia\",\"email\":\"bia@example.com\",\"senha\":\"segura\",\"papel\":\"ADMIN\"}"))
+                .andExpect(status().isOk());
+        assertThat(usuarios.findByEmail("bia@example.com").orElseThrow().getPapel()).isEqualTo(Papel.CLIENTE);
+        var result = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"bia@example.com\",\"senha\":\"segura\"}"))
+                .andExpect(status().isOk()).andReturn();
+        String token = JsonPath.read(result.getResponse().getContentAsString(), "$.accessToken");
+        assertThat(decoder.decode(token).getClaimAsString("papel")).isEqualTo("CLIENTE");
+        String bearer = "Bearer " + token;
+        for (HttpMethod method : new HttpMethod[]{HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE}) {
+            String path = method == HttpMethod.POST ? "/produtos" : "/produtos/1";
+            mvc.perform(request(method, path).header("Authorization", bearer)
+                            .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isForbidden());
+        }
+        assertThat(produtos.count()).isZero();
+    }
+
+    @Test
+    void usuarioAntigoSemPapelNaoPodeAlterarProdutos() throws Exception {
+        Usuario usuario = usuarios.findById(usuarioId).orElseThrow();
+        usuario.setPapel(null);
+        usuarios.saveAndFlush(usuario);
+        assertThat(usuario.getPapel()).isEqualTo(Papel.CLIENTE);
+        mvc.perform(post("/produtos").header("Authorization", "Bearer " + login()))
+                .andExpect(status().isForbidden());
     }
 }

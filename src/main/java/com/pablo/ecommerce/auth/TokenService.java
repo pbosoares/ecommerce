@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.stereotype.Service;
+import com.pablo.ecommerce.usuario.Usuario;
 
 @Service
 public class TokenService {
@@ -22,9 +23,10 @@ public class TokenService {
         this.ttlSeconds = ttlSeconds;
     }
 
-    public TokenResponse emitir(Long usuarioId) {
+    public TokenResponse emitir(Usuario usuario) {
         Instant now = Instant.now();
-        var claims = JwtClaimsSet.builder().issuer(issuer).subject(usuarioId.toString())
+        var claims = JwtClaimsSet.builder().issuer(issuer).subject(usuario.getId().toString())
+                .claim("papel", usuario.getPapel().name())
                 .issuedAt(now).expiresAt(now.plusSeconds(ttlSeconds)).build();
         var header = JwsHeader.with(MacAlgorithm.HS256).type("JWT").build();
         String token = encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();

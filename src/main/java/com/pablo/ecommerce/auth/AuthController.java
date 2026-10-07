@@ -21,6 +21,6 @@ public class AuthController {
     public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
         var usuario = authService.autenticar(request);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).header("Pragma", "no-cache")
-                .body(tokenService.emitir(usuario.getId()));
+                .body(tokenService.emitir(usuario));
     }
 }

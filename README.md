@@ -37,7 +37,7 @@ O e-mail e comparado exatamente como no cadastro.
 
 ## Endpoints protegidos
 
-Apenas `POST /usuarios` e `POST /auth/login` sao publicos. Todos os outros endpoints, incluindo leitura e escrita de produtos, exigem:
+`POST /usuarios`, `POST /auth/login` e `GET /produtos` (inclusive por ID) sao publicos. Apenas administradores podem criar, atualizar ou excluir produtos. Os demais endpoints exigem autenticacao:
 
 ```http
 Authorization: Bearer <accessToken>
@@ -45,6 +45,12 @@ Authorization: Bearer <accessToken>
 
 O JWT usa HS256, identifica o usuario pelo ID (`sub`) e valida assinatura, emissor e expiracao. A validade padrao e de 15 minutos (`app.jwt.ttl-seconds=900`). Tokens ausentes, invalidos ou expirados retornam `401`. A API nao cria sessao; cada requisicao precisa do token. Basic Auth e formulario de login estao desativados.
 
-Qualquer usuario autenticado pode acessar o CRUD de produtos; ainda nao ha papeis de administrador. Nao ha refresh token nem revogacao individual: ao expirar, faca login novamente. Use HTTPS fora do ambiente local.
+O cadastro publico sempre cria um `CLIENTE`, mesmo se o corpo da requisicao tentar enviar `papel: ADMIN`. Contas antigas sem papel sao tratadas como clientes. Para provisionar o primeiro administrador, cadastre-o normalmente e execute, com acesso administrativo ao PostgreSQL:
+
+```sql
+UPDATE usuario SET papel = 'ADMIN' WHERE email = 'admin@exemplo.com';
+```
+
+Substitua o e-mail pelo da conta desejada. Faca login novamente apos a promocao; o papel fica no JWT assinado. Uma alteracao de papel passa a valer para novos tokens; tokens anteriores expiram em ate 15 minutos. Nao ha refresh token nem revogacao individual. Use HTTPS fora do ambiente local.
 
 Os testes cobrem login com Argon2, validacao de entrada, CRUD com JWT, bloqueio sem token, adulteracao, assinatura incorreta, emissor incorreto, expiracao e ausencia de sessao.
