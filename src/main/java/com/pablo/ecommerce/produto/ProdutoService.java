@@ -8,20 +8,25 @@ import java.net.URI;
 import org.springframework.dao.DataIntegrityViolationException;
 import com.pablo.ecommerce.categoria.Categoria;
 import com.pablo.ecommerce.categoria.CategoriaRepository;
+import com.pablo.ecommerce.compra.CarrinhoItemRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ProdutoService {
 
     private final ProdutoRepository produtoRepository;
     private final CategoriaRepository categoriaRepository;
+    private final CarrinhoItemRepository carrinhoItens;
 
-    public ProdutoService(ProdutoRepository produtoRepository, CategoriaRepository categoriaRepository) {
+    public ProdutoService(ProdutoRepository produtoRepository, CategoriaRepository categoriaRepository,
+            CarrinhoItemRepository carrinhoItens) {
         this.produtoRepository = produtoRepository;
         this.categoriaRepository = categoriaRepository;
+        this.carrinhoItens = carrinhoItens;
     }
 
     public Produto salvar(ProdutoRequest request) {
@@ -44,7 +49,9 @@ public class ProdutoService {
 
     }
 
+    @Transactional
     public void excluir(Long id) {
+        carrinhoItens.deleteByProdutoId(id);
         produtoRepository.deleteById(id);
     }
 

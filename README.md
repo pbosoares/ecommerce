@@ -79,4 +79,22 @@ O catalogo nao depende de um fornecedor. `tipo` pode ser `FISICO` (padrao para p
 - Produtos fisicos exigem `estoque` e podem informar `pesoGramas`, `alturaCm`, `larguraCm` e `comprimentoCm` para uma futura cotacao de frete.
 - Produtos digitais nao usam estoque nem dimensoes de envio. O cadastro do tipo digital ainda nao entrega arquivos: isso dependera de pedidos pagos e acesso controlado.
 
-As imagens sao URLs externas cadastradas pelo administrador; a API ainda nao recebe arquivos nem hospeda imagens. O frontend sera feito em React, separado da API Spring Boot. Ainda faltam carrinho, pedidos, pagamentos e frete para efetuar vendas.
+As imagens sao URLs externas cadastradas pelo administrador; a API ainda nao recebe arquivos nem hospeda imagens. O frontend sera feito em React, separado da API Spring Boot.
+
+## Carrinho e pedidos
+
+Todas as rotas abaixo exigem `Authorization: Bearer <accessToken>`. O usuario acessa somente seu proprio carrinho e seus pedidos.
+
+- `GET /carrinho` retorna itens e subtotal calculado pelos precos atuais do catalogo.
+- `POST /carrinho/itens` recebe `{"produtoId":1,"quantidade":2}` e adiciona a quantidade ao item.
+- `PUT /carrinho/itens/1` recebe `{"quantidade":3}` e define a quantidade do produto 1.
+- `DELETE /carrinho/itens/1` remove o produto 1 do carrinho.
+- `POST /pedidos` transforma o carrinho em pedido e o esvazia. `GET /pedidos` e `GET /pedidos/{id}` consultam o historico do comprador.
+
+Se houver algum produto fisico, `POST /pedidos` exige endereco:
+
+```json
+{"entrega":{"cep":"01001000","logradouro":"Praca da Se","numero":"1","bairro":"Se","cidade":"Sao Paulo","uf":"SP"}}
+```
+
+Pedidos fisicos ficam em `AGUARDANDO_FRETE`, com `frete` e `total` ainda nulos. Pedidos somente digitais ficam em `AGUARDANDO_PAGAMENTO`, com total igual ao subtotal. Itens guardam copia do nome, SKU, tipo e preco para preservar o historico. Nenhuma cobranca e feita e o estoque fisico nao e reservado ou reduzido nesta etapa; a disponibilidade e conferida novamente ao criar o pedido. Ainda faltam cotacao de frete, pagamento e entrega digital antes de aceitar vendas reais.
