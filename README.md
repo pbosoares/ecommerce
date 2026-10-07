@@ -1,6 +1,6 @@
 # E-commerce
 
-API Spring Boot com cadastro de usuarios, permissoes e catalogo de produtos por categoria. Requer Java 21 ou superior.
+API Spring Boot com cadastro de usuarios, permissoes e catalogo de produtos fisicos e digitais por categoria. Requer Java 21 ou superior.
 
 ## Executar e testar
 
@@ -66,9 +66,17 @@ O administrador cria uma categoria com `POST /categorias`:
 O `slug` e unico e usa letras minusculas, numeros e hifens. `GET /categorias` fornece a lista para montar as abas. Produtos novos precisam do ID de uma categoria:
 
 ```json
-{"nome":"Fone","descricao":"Sem fio","preco":99.90,"estoque":5,"categoriaId":1}
+{"nome":"Fone","descricao":"Sem fio","preco":99.90,"estoque":5,"categoriaId":1,"tipo":"FISICO"}
 ```
 
-Use `POST /produtos` para criar e `PUT /produtos/{id}` para atualizar, ambos com o corpo acima. `GET /produtos?categoria=eletronicos` lista apenas a aba dessa categoria; `GET /produtos` lista todos. Categorias desconhecidas retornam uma lista vazia. Produtos cadastrados antes desta mudanca permanecem visiveis na lista geral sem categoria; um administrador pode atribuir categoria ao atualiza-los.
+Use `POST /produtos` para criar e `PUT /produtos/{id}` para atualizar, ambos com o corpo acima. `GET /produtos?categoria=eletronicos` lista apenas os produtos da categoria; `GET /produtos` lista todos. Categorias desconhecidas retornam uma lista vazia. Produtos cadastrados antes desta mudanca permanecem visiveis na lista geral sem categoria; um administrador pode atribuir categoria ao atualiza-los.
 
-A pagina publica `/` mostra o catalogo com uma aba para cada categoria e permite compartilhar o filtro na URL (`/?categoria=eletronicos`). A pagina exibe disponibilidade, mas ainda nao existe carrinho, checkout ou calculo de frete.
+## Tipos de produto
+
+O catalogo nao depende de um fornecedor. `tipo` pode ser `FISICO` (padrao para produtos antigos) ou `DIGITAL`.
+
+- Campos comuns: `nome`, `descricao`, `preco`, `categoriaId`, `sku` opcional e unico, ate dez URLs HTTP(S) em `imagens` e ate vinte pares em `atributos` (por exemplo, cor/tamanho ou idioma/formato).
+- Produtos fisicos exigem `estoque` e podem informar `pesoGramas`, `alturaCm`, `larguraCm` e `comprimentoCm` para uma futura cotacao de frete.
+- Produtos digitais nao usam estoque nem dimensoes de envio. O cadastro do tipo digital ainda nao entrega arquivos: isso dependera de pedidos pagos e acesso controlado.
+
+As imagens sao URLs externas cadastradas pelo administrador; a API ainda nao recebe arquivos nem hospeda imagens. O frontend sera feito em React, separado da API Spring Boot. Ainda faltam carrinho, pedidos, pagamentos e frete para efetuar vendas.

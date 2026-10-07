@@ -65,9 +65,6 @@ class CategoriaIntegrationTests {
 
     @Test
     void clienteVeCategoriasEProdutosFiltradosMasNaoPodeAlterarCatalogo() throws Exception {
-        mvc.perform(get("/")).andExpect(status().isOk()).andExpect(forwardedUrl("index.html"));
-        mvc.perform(get("/index.html")).andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"tabs\"")));
         Number livros = criarCategoria("Livros", "livros");
         Number jogos = criarCategoria("Jogos", "jogos");
         var created = mvc.perform(post("/produtos").header("Authorization", admin)
@@ -131,6 +128,71 @@ class CategoriaIntegrationTests {
                 .andExpect(status().isNotFound());
         mvc.perform(post("/produtos").header("Authorization", admin)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"nome\":\"Sem categoria\",\"preco\":42,\"estoque\":3}"))
+                .andExpect(status().isBadRequest());
+        assertThat(produtos.count()).isZero();
+    }
+
+    @Test
+    void cadastraProdutoFisicoComDadosGenericos() throws Exception {
+        Number categoriaId = criarCategoria("Roupas", "roupas");
+        String body = """
+                {"nome":"Camiseta","descricao":"Algodao","preco":79.90,"estoque":12,
+                 "categoriaId":%d,"tipo":"FISICO","sku":"CAM-PRETA-M",
+                 "imagens":["https://exemplo.com/camiseta.jpg"],
+                 "atributos":{"cor":"preta","tamanho":"M"},
+                 "pesoGramas":250,"alturaCm":3,"larguraCm":20,"comprimentoCm":25}
+                """.formatted(categoriaId);
+        var result = mvc.perform(post("/produtos").header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.sku").value("CAM-PRETA-M"))
+                .andExpect(jsonPath("$.tipo").value("FISICO"))
+                .andExpect(jsonPath("$.imagens[0]").value("https://exemplo.com/camiseta.jpg"))
+                .andExpect(jsonPath("$.atributos.tamanho").value("M"))
+                .andReturn();
+        Number id = JsonPath.read(result.getResponse().getContentAsString(), "$.id");
+        mvc.perform(get("/produtos/{id}", id)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.pesoGramas").value(250));
+        mvc.perform(put("/produtos/{id}", id).header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON).content(body.replace("Camiseta", "Camiseta nova")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.nome").value("Camiseta nova"));
+        mvc.perform(post("/produtos").header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isConflict());
+        assertThat(produtos.count()).isEqualTo(1);
+    }
+
+    @Test
+    void cadastraProdutoDigitalSemEstoqueOuFrete() throws Exception {
+        Number categoriaId = criarCategoria("Cursos", "cursos");
+        String body = """
+                {"nome":"Curso de desenho","preco":49.90,"categoriaId":%d,
+                 "tipo":"DIGITAL","sku":"CURSO-DESENHO",
+                 "imagens":["https://exemplo.com/capa.png"],
+                 "atributos":{"idioma":"portugues","formato":"video"}}
+                """.formatted(categoriaId);
+        mvc.perform(post("/produtos").header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.tipo").value("DIGITAL"))
+                .andExpect(jsonPath("$.estoque").value(0))
+                .andExpect(jsonPath("$.atributos.formato").value("video"));
+        mvc.perform(get("/produtos?categoria=cursos")).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].tipo").value("DIGITAL"));
+        mvc.perform(post("/produtos").header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON).content(body.replace("\"sku\":\"CURSO-DESENHO\",", "\"pesoGramas\":250,")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rejeitaImagemInseguraEDadosInvalidosDoProdutoFisico() throws Exception {
+        Number categoriaId = criarCategoria("Roupas", "roupas");
+        mvc.perform(post("/produtos").header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nome\":\"Camiseta\",\"preco\":20,\"categoriaId\":" + categoriaId + "}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/produtos").header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nome\":\"Camiseta\",\"preco\":20,\"estoque\":1,\"categoriaId\":"
+                        + categoriaId + ",\"imagens\":[\"javascript:alert(1)\"]}"))
                 .andExpect(status().isBadRequest());
         assertThat(produtos.count()).isZero();
     }
