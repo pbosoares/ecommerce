@@ -2,6 +2,8 @@
 
 API Spring Boot com cadastro de usuarios, permissoes e catalogo de produtos fisicos e digitais por categoria. Requer Java 21 ou superior.
 
+O frontend React da loja **Cazuma** fica em [`frontend/`](frontend/README.md). Para abrir a loja, execute `npm install` e `npm run dev` nessa pasta e visite `http://localhost:5173/`; abrir o arquivo `index.html` diretamente deixa os modulos React sem o servidor Vite. A API precisa estar em `localhost:8080` para carregar o catalogo e usar a conta e o carrinho.
+
 ## Executar e testar
 
 - Configure `DB_PASSWORD` para o PostgreSQL local (`localhost:5432/ecommerce`, usuario `postgres`).

@@ -35,3 +35,5 @@ build/
 ### Environment variables ###
 .env
 .env.*
+frontend/node_modules/
+frontend/dist/
