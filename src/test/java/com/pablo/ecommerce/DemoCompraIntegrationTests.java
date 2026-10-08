@@ -22,6 +22,9 @@ class DemoCompraIntegrationTests {
 
     @Test
     void catalogoFicticioPermiteSimularCompraSemPagamento() throws Exception {
+        mvc.perform(get("/loja/config"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.demo").value(true));
         mvc.perform(get("/categorias"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(4));
