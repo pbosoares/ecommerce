@@ -178,6 +178,7 @@ export default function App() {
     const order = await request('/pedidos', { token, method: 'POST', headers: { 'Idempotency-Key': orderKey }, body: JSON.stringify(body) })
     rotateOrderKey()
     setCart(await request('/carrinho', { token })); setQuote(null); setCep(''); setAddress(emptyAddress)
+    await loadCatalog()
     await loadOrders(); go('orders')
     if (isDemo) { notify(`Pedido #${order.id} de demonstração registrado. Nenhuma cobrança foi feita.`); return }
     try {
@@ -197,6 +198,16 @@ export default function App() {
     try { setOrders(await request('/pedidos', { token })); go('orders') }
     catch (error) { notify(error.message) }
   }
+
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get('checkout')
+    if (!['success', 'cancelled'].includes(result)) return
+    window.history.replaceState({}, '', window.location.pathname)
+    if (token) loadOrders()
+    notify(result === 'success'
+      ? 'Pagamento enviado. Aguarde a confirmação para liberar o pedido.'
+      : 'Pagamento não concluído. Você pode tentar novamente em Meus pedidos.')
+  }, [])
 
   return <div className="site-shell">
     <div className="announcement"><span>Boas escolhas começam por aqui</span><span className="announcement-dot">✦</span><span>Produtos físicos e digitais em um só lugar</span></div>

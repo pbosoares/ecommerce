@@ -4,6 +4,8 @@ API Spring Boot com cadastro de usuarios, permissoes e catalogo de produtos fisi
 
 O frontend React da loja **Cazuma** fica em [`frontend/`](frontend/README.md). Para abrir a loja, execute `npm install` e `npm run dev` nessa pasta e visite `http://localhost:5173/`; abrir o arquivo `index.html` diretamente deixa os modulos React sem o servidor Vite. A API precisa estar em `localhost:8080` para carregar o catalogo e usar a conta e o carrinho.
 
+Para instalar em uma VPS com Docker e HTTPS, veja [`deploy/README.md`](deploy/README.md).
+
 ## Demonstracao sem PostgreSQL
 
 Para apresentar o projeto ou simular uma compra, inicie a API no perfil `demo`:
@@ -127,8 +129,8 @@ Ao criar um pedido, o servidor recalcula os precos e o frete e reserva o estoque
 
 Para baixar um arquivo digital pago, o comprador usa `GET /pedidos/{pedidoId}/itens/{itemId}/download`. A API confere a identidade, o pedido e o pagamento; o arquivo nunca e exposto como URL publica. A troca do arquivo do produto preserva o arquivo associado a pedidos anteriores. A remocao fisica dos arquivos antigos requer uma politica de retencao/backup antes de operar em producao.
 
-Cada mudanca de estado gera uma notificacao persistida. O Spring Mail envia via SMTP em segundo plano e tenta novamente apos falhas. Configure `MAIL_HOST`, `MAIL_PORT` (padrao 587), `MAIL_USERNAME`, `MAIL_PASSWORD` e `EMAIL_FROM`; sem SMTP configurado, os e-mails ficam pendentes. Nao inclua senhas no repositorio.
+Cada mudanca de estado gera uma notificacao persistida. O Resend envia por HTTPS em segundo plano, com chave de idempotencia por notificacao e novas tentativas apos falhas. Configure `RESEND_API_KEY` e `EMAIL_FROM` de um dominio verificado; sem isso, os e-mails ficam pendentes. Nao inclua chaves no repositorio.
 
-Para usar `prod`, configure tambem `DB_PASSWORD`, `JWT_SECRET`, `STRIPE_SECRET_KEY` (chave live), `STRIPE_WEBHOOK_SECRET`, `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL` (HTTPS) e `DIGITAL_STORAGE_PATH` privado e persistente. Cadastre no Stripe o endpoint HTTPS `/webhooks/stripe` para os eventos `checkout.session.completed`, `checkout.session.async_payment_succeeded` e `checkout.session.expired`. O perfil `demo` continua com produtos ficticios e simulacao sem cobranca; seus pedidos nao ficam pagos automaticamente.
+Para usar `prod`, configure tambem `DB_PASSWORD`, `JWT_SECRET`, `STRIPE_SECRET_KEY` (chave live), `STRIPE_WEBHOOK_SECRET`, `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL` (HTTPS) e `DIGITAL_STORAGE_PATH` privado e persistente. Cadastre no Stripe o endpoint HTTPS `/webhooks/stripe` para os eventos `checkout.session.completed`, `checkout.session.async_payment_succeeded` e `checkout.session.expired`. O perfil `demo` continua com produtos ficticios e simulacao sem cobranca; seus pedidos nao ficam pagos automaticamente. Em `prod`, Flyway aplica migracoes e o Hibernate valida o esquema sem altera-lo automaticamente.
 
-A API limita requisicoes por IP em memoria (login/cadastro: 10/min; leitura: 600/min; demais: 120/min) e valida tamanhos dos principais campos. Em varias instancias, use um limitador compartilhado no proxy. Antes de vender, ainda sao necessarios HTTPS no proxy, migracoes versionadas do banco, backup e restauracao testados, monitoramento/alertas, testes com credenciais Stripe/SMTP reais e uma revisao de seguranca de producao. Os testes automatizados nao garantem que o site seja inviolavel.
+A API limita requisicoes por IP em memoria (login/cadastro: 10/min; leitura: 600/min; demais: 120/min) e valida tamanhos dos principais campos. Em varias instancias, use um limitador compartilhado no proxy. Antes de vender, ainda sao necessarios HTTPS no proxy, backup e restauracao testados, monitoramento/alertas, testes com credenciais Stripe/Resend reais e uma revisao de seguranca de producao. Os testes automatizados nao garantem que o site seja inviolavel.

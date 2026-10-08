@@ -14,7 +14,7 @@ public class ProductionConfigGuard {
         return args -> {
             if (env.matchesProfiles("demo")) throw new IllegalStateException("Perfis demo e prod nao podem ser combinados");
             for (String chave : new String[]{"app.stripe.secret-key", "app.stripe.webhook-secret",
-                    "app.email.from", "spring.mail.host", "spring.mail.username", "spring.mail.password",
+                    "app.email.from", "app.resend.api-key",
                     "app.digital.storage-path"}) {
                 if (env.getRequiredProperty(chave).isBlank()) {
                     throw new IllegalStateException("Configuracao obrigatoria ausente: " + chave);

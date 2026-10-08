@@ -3,9 +3,6 @@ package com.pablo.ecommerce.compra;
 import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -13,11 +10,9 @@ import static org.mockito.Mockito.*;
 
 class EmailEntregaServiceTests {
     @Test
-    @SuppressWarnings("unchecked")
-    void enviaStatusPeloSpringMailEMarcaFilaComoEntregue() {
+    void enviaStatusPeloResendEMarcaFilaComoEntregue() throws Exception {
         EmailNotificacaoRepository repositorio = mock(EmailNotificacaoRepository.class);
-        ObjectProvider<JavaMailSender> provider = mock(ObjectProvider.class);
-        JavaMailSender sender = mock(JavaMailSender.class);
+        ResendEmailClient resend = mock(ResendEmailClient.class);
         EmailNotificacao email = new EmailNotificacao();
         email.setId(1L);
         email.setPedidoId(42L);
@@ -25,9 +20,8 @@ class EmailEntregaServiceTests {
         email.setDestinatario("cliente@example.com");
         email.setProximaTentativa(Instant.now().minusSeconds(1));
         when(repositorio.findByIdForUpdate(1L)).thenReturn(Optional.of(email));
-        when(provider.getObject()).thenReturn(sender);
-        new EmailEntregaService(repositorio, provider, "loja@example.com").enviar(1L);
-        verify(sender).send(any(SimpleMailMessage.class));
+        new EmailEntregaService(repositorio, resend).enviar(1L);
+        verify(resend).enviar(email);
         assertThat(email.getEnviadoEm()).isNotNull();
     }
 }
