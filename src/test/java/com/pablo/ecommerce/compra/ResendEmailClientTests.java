@@ -41,6 +41,15 @@ class ResendEmailClientTests {
             assertThat(corpo.get()).contains("\"from\":\"loja@example.com\"")
                     .contains("\"cliente@example.com\"")
                     .contains("\"text\":\"Seu pedido #42 agora está: PAGO.\"");
+            email.setId(8L);
+            email.setPedidoId(null);
+            email.setStatus(null);
+            email.setUsuarioId(3L);
+            email.setNomeDestinatario("Cliente Cazuma");
+            client.enviar(email);
+            assertThat(idempotencia.get()).isEqualTo("cazuma-email-8");
+            assertThat(corpo.get()).contains("Boas-vindas à Cazuma!")
+                    .contains("Olá, Cliente Cazuma!").doesNotContain("pedido #null");
         } finally {
             servidor.stop(0);
         }

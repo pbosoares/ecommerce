@@ -16,6 +16,7 @@ public class LojaConfigController {
 
     @GetMapping("/loja/config")
     public Map<String, Boolean> config() {
-        return Map.of("demo", environment.acceptsProfiles(Profiles.of("demo")));
+        return Map.of("demo", environment.acceptsProfiles(Profiles.of("demo")),
+                "pagamentoTeste", environment.acceptsProfiles(Profiles.of("sandbox")));
     }
 }

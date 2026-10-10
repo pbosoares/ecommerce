@@ -1,6 +1,7 @@
 package com.pablo.ecommerce.compra;
 
 import java.time.Instant;
+import com.pablo.ecommerce.usuario.Usuario;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -17,6 +18,15 @@ public class EmailNotificacaoService {
         email.setPedidoId(pedido.getId());
         email.setStatus(pedido.getStatus());
         email.setDestinatario(pedido.getUsuario().getEmail());
+        email.setProximaTentativa(Instant.now());
+        emails.save(email);
+    }
+
+    public void agendarBoasVindas(Usuario usuario) {
+        EmailNotificacao email = new EmailNotificacao();
+        email.setUsuarioId(usuario.getId());
+        email.setNomeDestinatario(usuario.getNome());
+        email.setDestinatario(usuario.getEmail());
         email.setProximaTentativa(Instant.now());
         emails.save(email);
     }

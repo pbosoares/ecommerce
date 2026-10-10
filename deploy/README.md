@@ -23,7 +23,7 @@ O Caddy encaminha o IP do cliente para a API e remove o cabecalho `Forwarded` re
 
 ### Stripe teste e Resend
 
-Para homologacao na VPS, use `deploy/env.sandbox.example` como `.env`. `APP_PROFILE=sandbox` aceita somente `sk_test_`; o perfil `prod` continua exigindo `sk_live_`. Use banco e dominio separados caso ja exista uma loja com pagamentos reais. O perfil sandbox usa Flyway, validacao de esquema e HTTPS, sem criar produtos de demonstracao.
+Para homologacao na VPS, use `deploy/env.sandbox.example` como `.env`. `APP_PROFILE=sandbox` aceita somente `sk_test_`; o perfil `prod` continua exigindo `sk_live_`. Use banco e dominio separados caso ja exista uma loja com pagamentos reais. O perfil sandbox usa Flyway, validacao de esquema e HTTPS. Em um catalogo vazio, cria cinco produtos fisicos ficticios para testar o checkout Stripe. O aviso da loja explica que nao ha cobranca nem entrega real; reiniciar nao duplica produtos nem reabastece estoque.
 
 No sandbox da Stripe, configure o endpoint `https://SEU_DOMINIO/webhooks/stripe` com os eventos `checkout.session.completed`, `checkout.session.async_payment_succeeded` e `checkout.session.expired`; coloque a chave secreta de teste em `STRIPE_SECRET_KEY` e o segredo desse endpoint em `STRIPE_WEBHOOK_SECRET`. Nao use o segredo do Stripe CLI para o endpoint hospedado.
 
@@ -44,7 +44,9 @@ docker compose logs --tail=100 api web
 
 O healthcheck `https://SEU_DOMINIO/api/actuator/health` responde apenas o estado agregado, sem detalhes internos. Configure monitoramento externo para esse endereco e alertas para falhas da API, do banco, dos e-mails pendentes e dos webhooks Stripe. O retorno do Stripe mostra ao comprador que a confirmacao pode levar alguns instantes.
 
-O perfil `prod` impede a subida com chaves Stripe/Resend, armazenamento digital ou URLs HTTPS ausentes. Sexta-feira, antes de ativar pagamentos, faca uma compra de teste em ambiente separado com chaves `sk_test_` e webhook de teste; a configuracao `prod` exige chave live e nao deve ser usada para esse teste. Valide tambem envio de e-mail e download digital apos o webhook. Produtos ficticios permanecem apenas no perfil local `demo`.
+O perfil `prod` impede a subida com chaves Stripe/Resend, armazenamento digital ou URLs HTTPS ausentes. Antes de ativar pagamentos, faca uma compra de teste em ambiente separado com chaves `sk_test_` e webhook de teste; a configuracao `prod` exige chave live e nao deve ser usada para esse teste. Valide tambem envio de e-mail e download digital apos o webhook. Produtos ficticios sao criados apenas nos perfis `demo` e `sandbox`; remova esses produtos antes de converter um banco sandbox em loja real.
+
+Cada novo cadastro agenda um e-mail de boas-vindas na mesma transacao do usuario. A fila persistida envia pela Resend em ate um minuto e reagenda falhas, sem impedir o login. O e-mail do sandbox informa que a loja esta em modo de teste. Contas existentes nao recebem mensagem retroativa. Notificacoes de criacao e mudancas de status dos pedidos continuam usando essa fila.
 
 ## Backup e atualizacao
 

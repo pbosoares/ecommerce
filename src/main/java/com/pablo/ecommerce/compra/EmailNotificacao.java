@@ -22,6 +22,9 @@ public class EmailNotificacao {
     private Long id;
     @Column(name = "pedido_id")
     private Long pedidoId;
+    @Column(name = "usuario_id", unique = true)
+    private Long usuarioId;
+    private String nomeDestinatario;
     @Enumerated(EnumType.STRING)
     private StatusPedido status;
     private String destinatario;

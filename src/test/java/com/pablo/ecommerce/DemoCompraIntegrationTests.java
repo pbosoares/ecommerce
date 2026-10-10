@@ -1,6 +1,7 @@
 package com.pablo.ecommerce;
 
 import com.jayway.jsonpath.JsonPath;
+import com.pablo.ecommerce.compra.EmailNotificacaoRepository;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("demo")
 class DemoCompraIntegrationTests {
     @Autowired MockMvc mvc;
+    @Autowired EmailNotificacaoRepository emails;
 
     @Test
     void catalogoFicticioPermiteSimularCompraSemPagamento() throws Exception {
@@ -40,6 +42,17 @@ class DemoCompraIntegrationTests {
                 .content("{\"nome\":\"Cliente Demo\",\"email\":\"cliente@demo.invalid\",\"senha\":\"senha-segura\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.papel").value("CLIENTE"));
+        assertThat(emails.findAll()).anySatisfy(email -> {
+            assertThat(email.getDestinatario()).isEqualTo("cliente@demo.invalid");
+            assertThat(email.getUsuarioId()).isNotNull();
+            assertThat(email.getNomeDestinatario()).isEqualTo("Cliente Demo");
+            assertThat(email.getPedidoId()).isNull();
+        });
+        long notificacoes = emails.count();
+        mvc.perform(post("/usuarios").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nome\":\"Cliente Demo\",\"email\":\"email-invalido\",\"senha\":\"senha-segura\"}"))
+                .andExpect(status().isBadRequest());
+        assertThat(emails.count()).isEqualTo(notificacoes);
         var login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"cliente@demo.invalid\",\"senha\":\"senha-segura\"}"))
                 .andExpect(status().isOk()).andReturn();

@@ -11,18 +11,19 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 
 @Configuration
-@Profile("demo")
+@Profile({"demo", "sandbox"})
 public class DemoCatalogoConfig {
     @Bean
-    ApplicationRunner catalogoDemonstracao(CategoriaRepository categorias, ProdutoRepository produtos) {
+    ApplicationRunner catalogoDemonstracao(CategoriaRepository categorias, ProdutoRepository produtos, Environment environment) {
         return args -> {
             if (categorias.count() > 0 || produtos.count() > 0) return;
             Categoria tecnologia = categoria(categorias, "Tecnologia", "tecnologia");
             Categoria casa = categoria(categorias, "Casa", "casa");
             Categoria estilo = categoria(categorias, "Estilo", "estilo");
-            Categoria digital = categoria(categorias, "Digital", "digital");
 
             produto(produtos, tecnologia, "Fone Aurora · demonstração", "Produto fictício para demonstrar a loja. Fone sem fio com acabamento suave.",
                     "189.90", 12, 350, "/demo/fone.svg", TipoProduto.FISICO);
@@ -34,8 +35,11 @@ public class DemoCatalogoConfig {
                     "59.90", 25, 450, "/demo/caneca.svg", TipoProduto.FISICO);
             produto(produtos, estilo, "Mochila Nômade · demonstração", "Produto fictício para demonstrar a loja. Espaço e leveza para acompanhar você.",
                     "219.00", 10, 650, "/demo/mochila.svg", TipoProduto.FISICO);
-            produto(produtos, digital, "Guia Criativo · demonstração", "Produto digital fictício para testar o catálogo. Nenhum arquivo é entregue nesta versão.",
+            if (environment.acceptsProfiles(Profiles.of("demo"))) {
+                Categoria digital = categoria(categorias, "Digital", "digital");
+                produto(produtos, digital, "Guia Criativo · demonstração", "Produto digital fictício para testar o catálogo. Nenhum arquivo é entregue nesta versão.",
                     "39.90", 0, null, "/demo/guia.svg", TipoProduto.DIGITAL);
+            }
         };
     }
 

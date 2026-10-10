@@ -10,6 +10,8 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
@@ -20,11 +22,21 @@ public class ResendEmailClient {
     private final ObjectMapper json;
     private final String chave;
     private final String remetente;
+    private String lojaUrl = "";
+    private boolean pagamentoTeste;
 
     @Autowired
     public ResendEmailClient(ObjectMapper json, @Value("${app.resend.api-key:}") String chave,
-            @Value("${app.email.from:}") String remetente) {
+            @Value("${app.email.from:}") String remetente,
+            @Value("${app.stripe.success-url:}") String retornoUrl, Environment environment) {
         this(json, chave, remetente, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build(), ENDPOINT);
+        if (!retornoUrl.isBlank()) {
+            URI retorno = URI.create(retornoUrl);
+            if ("https".equals(retorno.getScheme()) && retorno.getHost() != null) {
+                lojaUrl = "https://" + retorno.getAuthority() + "/";
+            }
+        }
+        pagamentoTeste = environment.acceptsProfiles(Profiles.of("sandbox", "demo"));
     }
 
     ResendEmailClient(ObjectMapper json, String chave, String remetente, HttpClient http, URI endpoint) {
@@ -43,7 +55,15 @@ public class ResendEmailClient {
         if (!configurado()) throw new IOException("Resend nao configurado");
         String assunto = "Cazuma - pedido #" + email.getPedidoId();
         String texto = "Seu pedido #" + email.getPedidoId() + " agora está: "
-                + email.getStatus().name().replace('_', ' ') + ".";
+                + (email.getStatus() == null ? "" : email.getStatus().name().replace('_', ' ')) + ".";
+        if (email.getUsuarioId() != null) {
+            assunto = "Boas-vindas à Cazuma!";
+            texto = "Olá, " + email.getNomeDestinatario() + "!\n\n"
+                    + "Sua conta na Cazuma foi criada. Explore a vitrine, escolha seus favoritos e acompanhe os pedidos pela sua conta.\n\n"
+                    + (lojaUrl.isBlank() ? "" : "Visite a loja: " + lojaUrl + "\n\n")
+                    + (pagamentoTeste ? "Estamos em modo de teste: os produtos são fictícios, sem cobrança ou entrega real.\n\n" : "")
+                    + "Bom ter você por aqui!\nEquipe Cazuma";
+        }
         String payload;
         try {
             payload = json.writeValueAsString(new Mensagem(remetente, List.of(email.getDestinatario()), assunto, texto));
