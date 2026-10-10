@@ -31,4 +31,7 @@ public class EmailNotificacao {
     private int tentativas;
     private Instant proximaTentativa;
     private Instant enviadoEm;
+    @Column(length = 2048)
+    private String recuperacaoUrl;
+    private Instant recuperacaoExpiraEm;
 }

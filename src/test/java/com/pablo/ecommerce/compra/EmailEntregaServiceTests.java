@@ -10,6 +10,36 @@ import static org.mockito.Mockito.*;
 
 class EmailEntregaServiceTests {
     @Test
+    void descartaLinkExpiradoSemEnviarEApagaLinkDaFila() throws Exception {
+        var repositorio = mock(EmailNotificacaoRepository.class);
+        var resend = mock(ResendEmailClient.class);
+        var email = new EmailNotificacao();
+        email.setId(3L);
+        email.setProximaTentativa(Instant.now().minusSeconds(1));
+        email.setRecuperacaoUrl("https://loja.example/#redefinir-senha=ficticio");
+        email.setRecuperacaoExpiraEm(Instant.now().minusSeconds(1));
+        when(repositorio.findByIdForUpdate(3L)).thenReturn(Optional.of(email));
+        new EmailEntregaService(repositorio, resend).enviar(3L);
+        verifyNoInteractions(resend);
+        assertThat(email.getRecuperacaoUrl()).isNull();
+        assertThat(email.getEnviadoEm()).isNotNull();
+    }
+
+    @Test
+    void apagaLinkAposEnvioBemSucedido() throws Exception {
+        var repositorio = mock(EmailNotificacaoRepository.class);
+        var resend = mock(ResendEmailClient.class);
+        var email = new EmailNotificacao();
+        email.setId(4L);
+        email.setProximaTentativa(Instant.now().minusSeconds(1));
+        email.setRecuperacaoUrl("https://loja.example/#redefinir-senha=ficticio");
+        email.setRecuperacaoExpiraEm(Instant.now().plusSeconds(1800));
+        when(repositorio.findByIdForUpdate(4L)).thenReturn(Optional.of(email));
+        new EmailEntregaService(repositorio, resend).enviar(4L);
+        verify(resend).enviar(email);
+        assertThat(email.getRecuperacaoUrl()).isNull();
+    }
+    @Test
     void falhaNoEnvioDeBoasVindasPermaneceNaFila() throws Exception {
         var repositorio = mock(EmailNotificacaoRepository.class);
         var resend = mock(ResendEmailClient.class);

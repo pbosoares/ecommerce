@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { downloadFile, money, request } from './api'
 import Orders from './Orders'
+import Account, { AddressFields, emptyAddress } from './Account'
+import PasswordRecovery from './PasswordRecovery'
 
-const emptyAddress = { cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '' }
 
 function Icon({ name, size = 20, stroke = 1.8 }) {
   const paths = {
@@ -68,7 +69,7 @@ function ProductCard({ product, onOpen, onAdd }) {
   </article>
 }
 
-function AuthModal({ mode, setMode, onClose, onSubmit, busy }) {
+function AuthModal({ mode, setMode, onClose, onSubmit, onForgot, busy }) {
   const [form, setForm] = useState({ nome: '', email: '', senha: '' })
   const signup = mode === 'register'
   return <Modal onClose={onClose} className="auth-modal">
@@ -83,6 +84,7 @@ function AuthModal({ mode, setMode, onClose, onSubmit, busy }) {
       <label>Senha<input required type="password" minLength={8} maxLength={128} autoComplete={signup ? 'new-password' : 'current-password'} value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} placeholder="Mínimo de 8 caracteres" /></label>
       <button className="button button-dark full" disabled={busy}>{busy ? 'Aguarde…' : signup ? 'Criar minha conta' : 'Entrar na minha conta'} <Icon name="arrow" size={18} /></button>
     </form>
+    {!signup && <p className="auth-switch"><button onClick={onForgot} disabled={busy}>Esqueci minha senha</button></p>}
     <p className="auth-switch">{signup ? 'Já tem uma conta?' : 'Ainda não tem uma conta?'} <button onClick={() => setMode(signup ? 'login' : 'register')}>{signup ? 'Entrar' : 'Criar conta'}</button></p>
   </Modal>
 }
@@ -105,7 +107,14 @@ export default function App() {
   const [ordersLoading, setOrdersLoading] = useState(false)
   const [ordersError, setOrdersError] = useState('')
   const [pendingOrders, setPendingOrders] = useState(false)
+  const [pendingAccount, setPendingAccount] = useState(false)
+  const [savedAddresses, setSavedAddresses] = useState([])
+  const [addressesLoading, setAddressesLoading] = useState(false)
+  const [addressesError, setAddressesError] = useState('')
+  const [savedAddressId, setSavedAddressId] = useState('')
   const [authOpen, setAuthOpen] = useState(false)
+  const [recoveryToken, setRecoveryToken] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('redefinir-senha') || '')
+  const [recoveryOpen, setRecoveryOpen] = useState(() => new URLSearchParams(window.location.hash.slice(1)).has('redefinir-senha'))
   const [authMode, setAuthMode] = useState('login')
   const [pendingProduct, setPendingProduct] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -116,6 +125,24 @@ export default function App() {
   const [address, setAddress] = useState(emptyAddress)
 
   const notify = (message) => setToast(message)
+  useEffect(() => {
+    const readRecoveryLink = () => {
+      const fragment = new URLSearchParams(window.location.hash.slice(1))
+      if (fragment.has('redefinir-senha')) {
+        setRecoveryToken(fragment.get('redefinir-senha') || ''); setRecoveryOpen(true); setAuthOpen(false)
+        window.history.replaceState({}, '', window.location.pathname + window.location.search)
+      }
+    }
+    readRecoveryLink()
+    window.addEventListener('hashchange', readRecoveryLink)
+    return () => window.removeEventListener('hashchange', readRecoveryLink)
+  }, [])
+  const closeRecovery = () => { setRecoveryOpen(false); setRecoveryToken('') }
+  const recoveryLogin = () => {
+    const changedPassword = Boolean(recoveryToken)
+    closeRecovery(); setAuthMode('login'); setAuthOpen(true)
+    if (changedPassword) { sessionStorage.removeItem('cazuma_token'); setToken(''); setCart(null); setOrders([]); setSavedAddresses([]) }
+  }
   useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(''), 4500); return () => clearTimeout(id) }, [toast])
 
   const loadCatalog = async () => {
@@ -129,7 +156,11 @@ export default function App() {
   }
   useEffect(() => { loadCatalog() }, [])
   useEffect(() => {
-    if (token) request('/carrinho', { token }).then(setCart).catch(() => { sessionStorage.removeItem('cazuma_token'); setToken(''); setCart(null) })
+    let current = true
+    if (token) request('/carrinho', { token }).then(data => { if (current) setCart(data) }).catch(() => {
+      if (current) { sessionStorage.removeItem('cazuma_token'); setToken(''); setCart(null) }
+    })
+    return () => { current = false }
   }, [token])
 
   const visibleProducts = useMemo(() => products.filter((product) => {
@@ -207,16 +238,44 @@ export default function App() {
   const baixarDigital = (order, item) => perform(async () => {
     await downloadFile(`/pedidos/${order.id}/itens/${item.id}/download`, token, item.nome)
   })
+  const loadAddresses = async () => {
+    if (!token) return
+    setAddressesLoading(true); setAddressesError('')
+    try {
+      const data = await request('/minha-conta/enderecos', { token })
+      if (sessionStorage.getItem('cazuma_token') === token) setSavedAddresses(data)
+    }
+    catch (error) { if (sessionStorage.getItem('cazuma_token') === token) setAddressesError(error.message) }
+    finally { if (sessionStorage.getItem('cazuma_token') === token) setAddressesLoading(false) }
+  }
+  const openAccount = () => {
+    go('account')
+    if (!token) { setPendingAccount(true); requireAccount() }
+  }
+  const logout = () => {
+    sessionStorage.removeItem('cazuma_token'); setToken(''); setCart(null); setQuote(null); setCep(''); setAddress(emptyAddress); setSavedAddressId(''); setPendingAccount(false); setPendingOrders(false); go('home'); notify('Você saiu da sua conta.')
+  }
+  const chooseAddress = (id) => {
+    setSavedAddressId(id); setQuote(null)
+    const saved = savedAddresses.find(entry => String(entry.id) === id)
+    const next = saved ? { ...saved.endereco } : { ...emptyAddress }
+    setAddress(next); setCep(next.cep)
+  }
   const loadOrders = async () => {
     go('orders')
     if (!token) { setPendingOrders(true); return requireAccount() }
     setOrdersLoading(true); setOrdersError('')
-    try { setOrders(await request('/pedidos', { token })) }
-    catch (error) { setOrdersError(error.message) }
-    finally { setOrdersLoading(false) }
+    try {
+      const data = await request('/pedidos', { token })
+      if (sessionStorage.getItem('cazuma_token') === token) setOrders(data)
+    }
+    catch (error) { if (sessionStorage.getItem('cazuma_token') === token) setOrdersError(error.message) }
+    finally { if (sessionStorage.getItem('cazuma_token') === token) setOrdersLoading(false) }
   }
   useEffect(() => {
-    setOrders([]); setOrdersError('')
+    setOrders([]); setOrdersError(''); setOrdersLoading(false); setSavedAddresses([]); setAddressesError(''); setAddressesLoading(false); setSavedAddressId('')
+    if (token) loadAddresses()
+    if (token && pendingAccount) { setPendingAccount(false); go('account') }
     if (token && pendingOrders) { setPendingOrders(false); loadOrders() }
   }, [token])
 
@@ -237,7 +296,7 @@ export default function App() {
         <button className="brand" onClick={() => go('home')} aria-label="Cazuma, página inicial"><span className="brand-symbol">c<span className="brand-sun">●</span></span><span>cazuma<span className="brand-period">.</span></span></button>
         <label className="search-box"><Icon name="search" size={21} /><input maxLength={80} value={search} onChange={(event) => { setSearch(event.target.value); if (view !== 'home') go('home') }} placeholder="O que você está procurando?" aria-label="Buscar produtos" /><span className="search-shortcut">Buscar</span></label>
         <div className="header-actions">
-          <button className="header-action account-action" aria-label={token ? 'Meus pedidos' : 'Entrar ou cadastrar'} onClick={() => loadOrders()}><Icon name="user" /><span>{token ? 'Meus pedidos' : 'Entrar / Cadastrar'}</span></button>
+          <button className="header-action account-action" aria-label={token ? 'Minha conta' : 'Entrar ou cadastrar'} onClick={openAccount}><Icon name="user" /><span>{token ? 'Minha conta' : 'Entrar / Cadastrar'}</span></button>
           <button className="header-action cart-action" aria-label={`Carrinho com ${count} itens`} onClick={() => go('cart')}><Icon name="bag" /><span>Carrinho</span>{count > 0 && <b className="cart-count">{count}</b>}</button>
         </div>
       </div>
@@ -246,6 +305,7 @@ export default function App() {
         <span className="nav-divider" />
         <button onClick={() => openCatalog()}>Novidades</button>
         {categories.slice(0, 4).map((category) => <button key={category.id} onClick={() => openCatalog(category.slug)}>{category.nome}</button>)}
+        <button onClick={loadOrders}>Meus pedidos</button>
         <span className="nav-spacer" />
         <span className="nav-note"><Icon name="pin" size={17} /> Frete calculado no carrinho</span>
       </nav>
@@ -274,10 +334,12 @@ export default function App() {
         {!token ? <div className="empty-state"><div className="empty-shape"><Icon name="user" size={42} /></div><h3>Entre para ver seu carrinho.</h3><p>Suas escolhas ficam vinculadas à sua conta.</p><button className="button button-dark" onClick={() => requireAccount()}>Entrar ou criar conta</button></div>
           : !cart?.itens?.length ? <div className="empty-state"><div className="empty-shape"><Icon name="bag" size={42} /></div><h3>Seu carrinho está vazio.</h3><p>Que tal encontrar algo especial na vitrine?</p><button className="button button-dark" onClick={() => openCatalog()}>Explorar produtos</button></div>
             : <div className="cart-layout"><div className="cart-content"><div className="cart-items">{cart.itens.map((item) => { const product = products.find((entry) => entry.id === item.produtoId) || { nome: item.nome, tipo: item.tipo }; return <div className="cart-item" key={item.produtoId}><ProductVisual product={product} className="cart-visual" /><div className="cart-item-main"><span className="card-category">{item.tipo === 'DIGITAL' ? 'Produto digital' : 'Produto físico'}</span><strong>{item.nome}</strong><span>{money(item.precoUnitario)} cada</span><button className="remove-button" onClick={() => removeItem(item)} disabled={busy}><Icon name="trash" size={15} /> Remover</button></div><div className="cart-item-end"><strong>{money(item.subtotal)}</strong><div className="quantity-control"><button onClick={() => changeQuantity(item, item.quantidade - 1)} disabled={busy} aria-label={`Diminuir quantidade de ${item.nome}`}><Icon name="minus" size={16} /></button><span>{item.quantidade}</span><button onClick={() => changeQuantity(item, item.quantidade + 1)} disabled={busy || (item.tipo === 'FISICO' && item.quantidade >= product.estoque)} aria-label={`Aumentar quantidade de ${item.nome}`}><Icon name="plus" size={16} /></button></div></div></div> })}</div>
-              {hasPhysical && <div className="checkout-card"><div className="checkout-title"><span className="checkout-icon"><Icon name="pin" /></span><div><h3>Para onde vamos enviar?</h3><p>Digite seu CEP para consultar o frete.</p></div></div><div className="cep-row"><input inputMode="numeric" maxLength={9} placeholder="00000-000" aria-label="CEP de entrega" value={cep} onChange={(e) => { setCep(e.target.value); setQuote(null) }} /><button className="button button-dark" onClick={calculateShipping} disabled={busy}>Calcular frete</button></div>{quote && <p className="quote-success"><Icon name="check" size={18} /> Frete para {quote.cep}: <strong>{money(quote.frete)}</strong></p>}</div>}
-              <div className="checkout-card"><div className="checkout-title"><span className="checkout-icon"><Icon name="package" /></span><div><h3>Dados para o pedido</h3><p>{hasPhysical ? 'Preencha o endereço de entrega.' : 'Produto digital: não precisa de endereço.'}</p></div></div>{hasPhysical && <div className="address-grid">{[['logradouro', 'Rua / avenida'], ['numero', 'Número'], ['complemento', 'Complemento'], ['bairro', 'Bairro'], ['cidade', 'Cidade'], ['uf', 'UF']].map(([key, label]) => <label key={key} className={`address-${key}`}>{label}<input required={key !== 'complemento'} maxLength={{ logradouro: 120, numero: 20, complemento: 120, bairro: 80, cidade: 80, uf: 2 }[key]} value={address[key]} onChange={(e) => setAddress({ ...address, [key]: e.target.value })} placeholder={label} /></label>)}</div>}</div></div>
+              {hasPhysical && <div className="checkout-card"><div className="checkout-title"><span className="checkout-icon"><Icon name="pin" /></span><div><h3>Para onde vamos enviar?</h3><p>Digite seu CEP para consultar o frete.</p></div></div><div className="checkout-saved-addresses"><label>Usar um endereço salvo<select value={savedAddressId} onChange={event => chooseAddress(event.target.value)} disabled={addressesLoading}><option value="">Digitar outro endereço</option>{savedAddresses.map(saved => <option key={saved.id} value={saved.id}>{saved.apelido} — {saved.endereco.cidade} / {saved.endereco.uf}</option>)}</select></label><button className="text-back" onClick={openAccount}>Gerenciar endereços</button>{addressesLoading && <p role="status">Carregando endereços…</p>}{addressesError && <p role="alert">{addressesError} <button onClick={loadAddresses}>Tentar novamente</button></p>}</div><div className="cep-row"><input inputMode="numeric" maxLength={9} placeholder="00000-000" aria-label="CEP de entrega" value={cep} onChange={(e) => { setCep(e.target.value); setAddress(current => ({ ...current, cep: e.target.value.replace(/\D/g, '') })); setSavedAddressId(''); setQuote(null) }} /><button className="button button-dark" onClick={calculateShipping} disabled={busy}>Calcular frete</button></div>{quote && <p className="quote-success"><Icon name="check" size={18} /> Frete para {quote.cep}: <strong>{money(quote.frete)}</strong></p>}</div>}
+              <div className="checkout-card"><div className="checkout-title"><span className="checkout-icon"><Icon name="package" /></span><div><h3>Dados para o pedido</h3><p>{hasPhysical ? 'Preencha o endereço de entrega.' : 'Produto digital: não precisa de endereço.'}</p></div></div>{hasPhysical && <AddressFields address={address} onChange={next => { setAddress(next); setSavedAddressId('') }} />}</div></div>
               <aside className="order-summary"><h3>Resumo do pedido</h3><div><span>Produtos</span><strong>{money(cart.subtotal)}</strong></div><div><span>Frete</span><strong>{hasPhysical ? quote ? money(quote.frete) : 'Calcule com o CEP' : money(0)}</strong></div><div className="summary-total"><span>Total</span><strong>{hasPhysical && !quote ? 'Calcule o frete' : money(quote?.total ?? cart.subtotal)}</strong></div><p className="summary-note">{isDemo === null ? 'Carregando configuração da loja…' : isDemo ? 'Demonstração: registrar o pedido não faz cobrança.' : 'Você será direcionado ao pagamento seguro após registrar o pedido.'}</p><button className="button button-dark full" disabled={busy || isDemo === null || (hasPhysical && !quote)} onClick={placeOrder}>{isDemo ? 'Simular pedido' : 'Ir para pagamento'} <Icon name="arrow" size={19} /></button></aside></div>}
       </section>}
+
+      {view === 'account' && <Account token={token} addresses={savedAddresses} addressesLoading={addressesLoading} addressesError={addressesError} onAddressesChange={loadAddresses} onShop={() => go('home')} onOrders={loadOrders} onLogout={logout} onLogin={() => { setPendingAccount(true); requireAccount() }} notify={notify} />}
 
       {view === 'orders' && <Orders orders={orders} loading={ordersLoading} error={ordersError} onRefresh={loadOrders} onShop={() => go('home')} onPay={startCheckout} onDownload={baixarDigital} busy={busy} isDemo={isDemo} authenticated={Boolean(token)} onLogin={() => { setPendingOrders(true); requireAccount() }} />}
 
@@ -286,7 +348,8 @@ export default function App() {
     <footer className="site-footer"><div className="container footer-content"><div><div className="footer-brand">cazuma<span>.</span></div><p>Boas escolhas moram aqui.</p></div><div className="footer-right"><span>Feito para descobrir coisas boas.</span><span>© {new Date().getFullYear()} Cazuma</span></div></div></footer>
 
     {selected && <Modal onClose={() => setSelected(null)} className="product-modal"><button className="icon-button modal-close" onClick={() => setSelected(null)} aria-label="Fechar"><Icon name="close" /></button><div className="product-detail"><ProductVisual product={selected} className="detail-visual" /><div className="detail-content"><span className="eyebrow">{selected.categoria?.nome || 'CAZUMA'} · {selected.tipo === 'DIGITAL' ? 'DIGITAL' : 'FÍSICO'}</span><h2>{selected.nome}</h2><p className="detail-description">{selected.descricao || 'Um novo achado para conhecer de perto.'}</p><strong className="detail-price">{money(selected.preco)}</strong><p className="detail-shipping">{selected.tipo === 'DIGITAL' ? 'Entrega digital após liberação do pedido.' : 'Calcule o frete no carrinho antes de registrar o pedido.'}</p>{selected.atributos && Object.keys(selected.atributos).length > 0 && <div className="detail-attributes">{Object.entries(selected.atributos).map(([key, value]) => <span key={key}><b>{key}:</b> {value}</span>)}</div>}<button className="button button-dark full" disabled={busy || (selected.tipo === 'FISICO' && selected.estoque < 1)} onClick={() => addProduct(selected)}>{selected.tipo === 'FISICO' && selected.estoque < 1 ? 'Indisponível' : 'Adicionar ao carrinho'} <Icon name="arrow" size={19} /></button></div></div></Modal>}
-    {authOpen && <AuthModal mode={authMode} setMode={setAuthMode} onClose={() => { setAuthOpen(false); setPendingProduct(null) }} onSubmit={submitAuth} busy={busy} />}
+    {authOpen && <AuthModal mode={authMode} setMode={setAuthMode} onClose={() => { setAuthOpen(false); setPendingProduct(null) }} onSubmit={submitAuth} onForgot={() => { setAuthOpen(false); setRecoveryToken(''); setRecoveryOpen(true) }} busy={busy} />}
+    {recoveryOpen && <PasswordRecovery key={recoveryToken || 'request'} Modal={Modal} resetToken={recoveryToken} onClose={closeRecovery} onLogin={recoveryLogin} onRequestNew={() => setRecoveryToken('')} onReset={() => { sessionStorage.removeItem('cazuma_token'); setToken(''); setCart(null); setOrders([]); setSavedAddresses([]); setQuote(null); setCep(''); setAddress(emptyAddress) }} />}
     {toast && <div className="toast" role="status"><span><Icon name="spark" size={18} /></span>{toast}<button onClick={() => setToast('')} aria-label="Dispensar aviso"><Icon name="close" size={16} /></button></div>}
   </div>
 }

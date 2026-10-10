@@ -38,6 +38,11 @@ public class Usuario {
     @Setter
     Papel papel = Papel.CLIENTE;
 
+    @JsonIgnore
+    @Setter
+    @jakarta.persistence.Column(nullable = false)
+    long senhaVersao;
+
     public Papel getPapel() {
         // Accounts created before roles existed are regular customers.
         return papel == null ? Papel.CLIENTE : papel;

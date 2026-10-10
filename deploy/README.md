@@ -48,6 +48,8 @@ O perfil `prod` impede a subida com chaves Stripe/Resend, armazenamento digital 
 
 Cada novo cadastro agenda um e-mail de boas-vindas na mesma transacao do usuario. A fila persistida envia pela Resend em ate um minuto e reagenda falhas, sem impedir o login. O e-mail do sandbox informa que a loja esta em modo de teste. Contas existentes nao recebem mensagem retroativa. Notificacoes de criacao e mudancas de status dos pedidos continuam usando essa fila.
 
+O link “Esqueci minha senha” no login agenda a recuperação na mesma fila. O link vale por 30 minutos, tem uso único e encerra sessões anteriores quando a senha é trocada. Por padrão, usa a origem HTTPS de `STRIPE_SUCCESS_URL`; opcionalmente configure `PASSWORD_RESET_URL` com a origem pública da loja. A migração V4 adiciona os registros de recuperação e a versão de senha das contas, sem mudar senhas existentes. Mensagens de recuperação expiradas são descartadas; links são apagados da fila após envio ou descarte. As restrições de destinatário do remetente Resend de teste também se aplicam à recuperação.
+
 ## Backup e atualizacao
 
 Antes de cada atualizacao, faca backup do banco e dos arquivos digitais, guarde as copias fora da VPS e teste uma restauracao em ambiente separado. Um exemplo de exportacao do banco:

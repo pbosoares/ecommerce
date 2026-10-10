@@ -9,6 +9,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class RateLimitFilterTests {
     @Test
+    void limitaSolicitacaoERedefinicaoDeSenhaComoLogin() throws Exception {
+        for (String path : new String[]{"/auth/recuperar-senha", "/auth/redefinir-senha"}) {
+            RateLimitFilter filtro = new RateLimitFilter();
+            for (int i = 0; i < 11; i++) {
+                var request = new MockHttpServletRequest("POST", path);
+                request.setRemoteAddr("192.0.2.2");
+                var response = new MockHttpServletResponse();
+                filtro.doFilter(request, response, new MockFilterChain());
+                assertThat(response.getStatus()).isEqualTo(i == 10 ? 429 : 200);
+            }
+        }
+    }
+    @Test
     void bloqueiaOnzeLoginsNoMinutoSemBloquearLeitura() throws Exception {
         RateLimitFilter filtro = new RateLimitFilter();
         for (int i = 0; i < 11; i++) {

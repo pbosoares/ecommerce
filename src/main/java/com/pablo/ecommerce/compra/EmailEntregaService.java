@@ -21,9 +21,16 @@ public class EmailEntregaService {
     public void enviar(Long id) {
         EmailNotificacao email = emails.findByIdForUpdate(id).orElse(null);
         if (email == null || email.getEnviadoEm() != null || email.getProximaTentativa().isAfter(Instant.now())) return;
+        if (email.getRecuperacaoExpiraEm() != null && !email.getRecuperacaoExpiraEm().isAfter(Instant.now())) {
+            // Discard expired links and erase the queued credential without sending an unusable e-mail.
+            email.setRecuperacaoUrl(null);
+            email.setEnviadoEm(Instant.now());
+            return;
+        }
         try {
             resend.enviar(email);
             email.setEnviadoEm(Instant.now());
+            email.setRecuperacaoUrl(null);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             reagendar(email);

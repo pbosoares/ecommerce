@@ -64,6 +64,15 @@ public class ResendEmailClient {
                     + (pagamentoTeste ? "Estamos em modo de teste: os produtos são fictícios, sem cobrança ou entrega real.\n\n" : "")
                     + "Bom ter você por aqui!\nEquipe Cazuma";
         }
+        if (email.getRecuperacaoUrl() != null) {
+            assunto = "Redefina sua senha na Cazuma";
+            texto = "Olá, " + email.getNomeDestinatario() + "!\n\n"
+                    + "Recebemos uma solicitação para redefinir sua senha. Acesse o link abaixo:\n\n"
+                    + email.getRecuperacaoUrl() + "\n\n"
+                    + "O link vale por 30 minutos a partir da solicitação e pode ser usado uma única vez. "
+                    + "Se você pediu outro link, use o mais recente.\n\n"
+                    + "Se não foi você, ignore este e-mail. Sua senha permanece a mesma.\nEquipe Cazuma";
+        }
         String payload;
         try {
             payload = json.writeValueAsString(new Mensagem(remetente, List.of(email.getDestinatario()), assunto, texto));

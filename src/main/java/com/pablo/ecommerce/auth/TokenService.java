@@ -27,6 +27,7 @@ public class TokenService {
         Instant now = Instant.now();
         var claims = JwtClaimsSet.builder().issuer(issuer).subject(usuario.getId().toString())
                 .claim("papel", usuario.getPapel().name())
+                .claim("senhaVersao", usuario.getSenhaVersao())
                 .issuedAt(now).expiresAt(now.plusSeconds(ttlSeconds)).build();
         var header = JwsHeader.with(MacAlgorithm.HS256).type("JWT").build();
         String token = encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();

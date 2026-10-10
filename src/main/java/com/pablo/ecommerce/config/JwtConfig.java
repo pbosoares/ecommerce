@@ -34,13 +34,15 @@ public class JwtConfig {
     }
 
     @Bean
-    public JwtDecoder jwtDecoder(SecretKey jwtKey, @Value("${app.jwt.issuer}") String issuer) {
+    public JwtDecoder jwtDecoder(SecretKey jwtKey, @Value("${app.jwt.issuer}") String issuer,
+            com.pablo.ecommerce.usuario.UsuarioRepository usuarios) {
         var decoder = NimbusJwtDecoder.withSecretKey(jwtKey).macAlgorithm(MacAlgorithm.HS256).build();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 new JwtTimestampValidator(Duration.ZERO),
                 new JwtIssuerValidator(issuer),
                 new JwtClaimValidator<String>("sub", subject -> subject != null && !subject.isBlank()),
-                new JwtClaimValidator<java.time.Instant>("exp", expiration -> expiration != null)));
+                new JwtClaimValidator<java.time.Instant>("exp", expiration -> expiration != null),
+                new com.pablo.ecommerce.auth.VersaoSenhaValidator(usuarios)));
         return decoder;
     }
 }

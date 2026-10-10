@@ -31,6 +31,8 @@ Os e-mails de boas-vindas e de atualização do pedido são enviados pela Resend
 | Carrinho e consulta de frete | Cálculo de valores no servidor e reserva de estoque |
 | Checkout de teste | Integração Stripe com confirmação por webhook assinado |
 | Histórico de pedidos | Cada cliente acessa apenas seus próprios pedidos |
+| Minha conta e endereços salvos | Dados persistidos por cliente e preenchimento do endereço no checkout |
+| Recuperação de senha por e-mail | Link temporário de uso único e revogação dos acessos anteriores |
 | E-mails automáticos | Fila persistida com novas tentativas de envio |
 
 A API também permite que administradores gerenciem produtos, categorias e etapas do pedido. Para produtos digitais, existe upload de arquivo privado e download autorizado após o pagamento. A vitrine pública atual usa apenas produtos físicos fictícios. Ainda não há um painel visual de administração.
@@ -116,7 +118,7 @@ O banco H2 fica em memória. Os dados desaparecem ao encerrar a API, e esse perf
 
 ## Testes e publicação 🚀
 
-A suíte atual tem **44 testes automatizados**, incluindo autenticação, permissões, catálogo, carrinho, pedidos, webhooks, e-mails e regras dos ambientes de execução. Os testes usam H2 e não alteram o banco da loja publicada.
+A suíte atual tem **56 testes automatizados**, incluindo autenticação, permissões, catálogo, carrinho, pedidos, webhooks, e-mails, minha conta, isolamento dos endereços salvos, recuperação de senha, uso simultâneo de links e regras dos ambientes de execução. Os testes usam H2 e não alteram o banco da loja publicada.
 
 No Windows:
 
@@ -150,7 +152,7 @@ Os detalhes de variáveis, acesso à VPS, backups e publicação estão no [guia
 
 ## Próximos passos
 
-O projeto já permite demonstrar uma compra completa com pagamento de teste. Para continuar evoluindo, os próximos passos são um painel administrativo, recuperação de senha e melhor acompanhamento de falhas e disponibilidade.
+O projeto já permite demonstrar uma compra completa com pagamento de teste. Para continuar evoluindo, os próximos passos são um painel administrativo e melhor acompanhamento de falhas e disponibilidade.
 
 O frete atual usa tarifas da própria loja, sem integração com transportadoras. Também não há estorno automático. Uma operação comercial real ainda precisa de validação operacional, monitoramento e testes de restauração dos backups.
 

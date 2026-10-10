@@ -15,6 +15,8 @@ export async function request(path, { token, ...options } = {}) {
     throw new Error('Não foi possível conectar à loja. Verifique se a API está ligada.')
   }
   if (!response.ok) {
+    if (response.status === 400 && path === '/auth/redefinir-senha') throw new Error('O link é inválido, já foi usado ou expirou. Solicite outro link e use uma senha de 8 a 128 caracteres.')
+    if (response.status === 429) throw new Error('Muitas tentativas em pouco tempo. Aguarde um minuto e tente novamente.')
     if (response.status === 401) throw new Error('Sua sessão terminou. Entre novamente para continuar.')
     if (response.status === 409) throw new Error('Este item não está disponível na quantidade escolhida.')
     if (response.status === 422) throw new Error('Não foi possível calcular o frete. Confira o peso dos produtos.')

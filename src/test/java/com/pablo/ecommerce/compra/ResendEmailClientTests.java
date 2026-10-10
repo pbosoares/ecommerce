@@ -50,6 +50,13 @@ class ResendEmailClientTests {
             assertThat(idempotencia.get()).isEqualTo("cazuma-email-8");
             assertThat(corpo.get()).contains("Boas-vindas à Cazuma!")
                     .contains("Olá, Cliente Cazuma!").doesNotContain("pedido #null");
+            email.setId(9L);
+            email.setUsuarioId(null);
+            email.setRecuperacaoUrl("https://loja.example/#redefinir-senha=token-ficticio");
+            client.enviar(email);
+            assertThat(corpo.get()).contains("Redefina sua senha na Cazuma")
+                    .contains("https://loja.example/#redefinir-senha=token-ficticio")
+                    .contains("30 minutos").doesNotContain("pedido #null");
         } finally {
             servidor.stop(0);
         }

@@ -30,4 +30,21 @@ public class EmailNotificacaoService {
         email.setProximaTentativa(Instant.now());
         emails.save(email);
     }
+
+    public void agendarRecuperacao(Usuario usuario, String url, Instant expiraEm) {
+        EmailNotificacao email = new EmailNotificacao();
+        email.setDestinatario(usuario.getEmail());
+        email.setNomeDestinatario(usuario.getNome());
+        email.setRecuperacaoUrl(url);
+        email.setRecuperacaoExpiraEm(expiraEm);
+        email.setProximaTentativa(Instant.now());
+        emails.save(email);
+    }
+
+    public void descartarRecuperacoes(Usuario usuario) {
+        emails.findByDestinatarioAndRecuperacaoUrlIsNotNull(usuario.getEmail()).forEach(email -> {
+            email.setRecuperacaoUrl(null);
+            if (email.getEnviadoEm() == null) email.setEnviadoEm(Instant.now());
+        });
+    }
 }

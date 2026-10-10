@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface EmailNotificacaoRepository extends JpaRepository<EmailNotificacao, Long> {
     boolean existsByPedidoIdAndStatus(Long pedidoId, StatusPedido status);
+    List<EmailNotificacao> findByDestinatarioAndRecuperacaoUrlIsNotNull(String destinatario);
     List<EmailNotificacao> findTop20ByEnviadoEmIsNullAndProximaTentativaBeforeOrderById(Instant agora);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select e from EmailNotificacao e where e.id = :id")

@@ -22,7 +22,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
             FilterChain chain) throws ServletException, IOException {
         long minute = Instant.now().getEpochSecond() / 60;
         String path = request.getRequestURI();
-        boolean auth = "/auth/login".equals(path) || "/usuarios".equals(path);
+        boolean auth = "/auth/login".equals(path) || "/usuarios".equals(path)
+                || "/auth/recuperar-senha".equals(path) || "/auth/redefinir-senha".equals(path);
         boolean read = "GET".equals(request.getMethod());
         int limit = auth ? 10 : read ? 600 : 120;
         String key = request.getRemoteAddr() + (auth ? ":auth" : read ? ":read" : ":write");
