@@ -32,7 +32,7 @@ if [[ -n "$previous" ]] && [[ -n "$(compose "$previous" ps --status running -q d
   compose "$previous" cp api:/data/digital "$root/backups/digital-$stamp"
 fi
 compose "$release" up -d --wait --wait-timeout 180
-compose "$release" exec -T web wget -q -O /dev/null http://127.0.0.1/api/actuator/health
+compose "$release" exec -T web sh -c 'wget -q -O /dev/null "https://$SHOP_DOMAIN/api/actuator/health"'
 ln -sfn "$release" "$root/current"
 printf '%s\n' "$revision" > "$root/deployed-revision"
 rm -f "release-$revision.tar.gz"
