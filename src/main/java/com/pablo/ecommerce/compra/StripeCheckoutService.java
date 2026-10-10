@@ -50,7 +50,6 @@ public class StripeCheckoutService {
         long centavos = pedido.getTotal().setScale(2, RoundingMode.UNNECESSARY).movePointRight(2).longValueExact();
         List<String> form = new ArrayList<>();
         campo(form, "mode", "payment");
-        campo(form, "payment_method_types[0]", "card");
         campo(form, "client_reference_id", pedido.getId().toString());
         campo(form, "customer_email", pedido.getUsuario().getEmail());
         campo(form, "success_url", successUrl);
