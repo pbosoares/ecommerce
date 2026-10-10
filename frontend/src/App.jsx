@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { downloadFile, money, request } from './api'
+import Orders from './Orders'
 
 const emptyAddress = { cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '' }
-const statusLabels = { AGUARDANDO_PAGAMENTO: 'Aguardando pagamento', PAGO: 'Pago', EM_PREPARACAO: 'Em preparação', ENVIADO: 'Enviado', ENTREGUE: 'Entregue', CANCELADO: 'Cancelado', EXPIRADO: 'Expirado' }
 
 function Icon({ name, size = 20, stroke = 1.8 }) {
   const paths = {
@@ -102,6 +102,9 @@ export default function App() {
   const [token, setToken] = useState(() => sessionStorage.getItem('cazuma_token') || '')
   const [cart, setCart] = useState(null)
   const [orders, setOrders] = useState([])
+  const [ordersLoading, setOrdersLoading] = useState(false)
+  const [ordersError, setOrdersError] = useState('')
+  const [pendingOrders, setPendingOrders] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState('login')
   const [pendingProduct, setPendingProduct] = useState(null)
@@ -205,10 +208,17 @@ export default function App() {
     await downloadFile(`/pedidos/${order.id}/itens/${item.id}/download`, token, item.nome)
   })
   const loadOrders = async () => {
-    if (!token) return requireAccount()
-    try { setOrders(await request('/pedidos', { token })); go('orders') }
-    catch (error) { notify(error.message) }
+    go('orders')
+    if (!token) { setPendingOrders(true); return requireAccount() }
+    setOrdersLoading(true); setOrdersError('')
+    try { setOrders(await request('/pedidos', { token })) }
+    catch (error) { setOrdersError(error.message) }
+    finally { setOrdersLoading(false) }
   }
+  useEffect(() => {
+    setOrders([]); setOrdersError('')
+    if (token && pendingOrders) { setPendingOrders(false); loadOrders() }
+  }, [token])
 
   useEffect(() => {
     const result = new URLSearchParams(window.location.search).get('checkout')
@@ -227,7 +237,7 @@ export default function App() {
         <button className="brand" onClick={() => go('home')} aria-label="Cazuma, página inicial"><span className="brand-symbol">c<span className="brand-sun">●</span></span><span>cazuma<span className="brand-period">.</span></span></button>
         <label className="search-box"><Icon name="search" size={21} /><input maxLength={80} value={search} onChange={(event) => { setSearch(event.target.value); if (view !== 'home') go('home') }} placeholder="O que você está procurando?" aria-label="Buscar produtos" /><span className="search-shortcut">Buscar</span></label>
         <div className="header-actions">
-          <button className="header-action account-action" aria-label={token ? 'Meus pedidos' : 'Entrar ou cadastrar'} onClick={() => token ? loadOrders() : requireAccount()}><Icon name="user" /><span>{token ? 'Meus pedidos' : 'Entrar / Cadastrar'}</span></button>
+          <button className="header-action account-action" aria-label={token ? 'Meus pedidos' : 'Entrar ou cadastrar'} onClick={() => loadOrders()}><Icon name="user" /><span>{token ? 'Meus pedidos' : 'Entrar / Cadastrar'}</span></button>
           <button className="header-action cart-action" aria-label={`Carrinho com ${count} itens`} onClick={() => go('cart')}><Icon name="bag" /><span>Carrinho</span>{count > 0 && <b className="cart-count">{count}</b>}</button>
         </div>
       </div>
@@ -269,7 +279,8 @@ export default function App() {
               <aside className="order-summary"><h3>Resumo do pedido</h3><div><span>Produtos</span><strong>{money(cart.subtotal)}</strong></div><div><span>Frete</span><strong>{hasPhysical ? quote ? money(quote.frete) : 'Calcule com o CEP' : money(0)}</strong></div><div className="summary-total"><span>Total</span><strong>{hasPhysical && !quote ? 'Calcule o frete' : money(quote?.total ?? cart.subtotal)}</strong></div><p className="summary-note">{isDemo === null ? 'Carregando configuração da loja…' : isDemo ? 'Demonstração: registrar o pedido não faz cobrança.' : 'Você será direcionado ao pagamento seguro após registrar o pedido.'}</p><button className="button button-dark full" disabled={busy || isDemo === null || (hasPhysical && !quote)} onClick={placeOrder}>{isDemo ? 'Simular pedido' : 'Ir para pagamento'} <Icon name="arrow" size={19} /></button></aside></div>}
       </section>}
 
-      {view === 'orders' && <section className="inner-page container"><button className="text-back" onClick={() => go('home')}><Icon name="back" size={18} /> Voltar à vitrine</button><div className="page-heading"><span className="eyebrow">SUA HISTÓRIA NA CAZUMA</span><h1>Meus pedidos<span>.</span></h1><p>Acompanhe os pedidos registrados na sua conta.</p></div>{orders.length ? <div className="orders-list">{orders.map((order) => <article className="order-card" key={order.id}><div className="order-card-head"><div><span className="eyebrow">PEDIDO #{order.id}</span><h3>{new Date(order.criadoEm).toLocaleDateString('pt-BR')}</h3></div><span className="status-pill">{statusLabels[order.status] || order.status}</span></div><div className="order-names">{order.itens.map((item) => `${item.quantidade}× ${item.nome}`).join(' · ')}</div><div className="order-card-foot"><span>Frete: {money(order.frete)}</span><strong>Total: {money(order.total)}</strong></div>{isDemo === false && order.status === 'AGUARDANDO_PAGAMENTO' && <button className="button button-dark" onClick={() => startCheckout(order)} disabled={busy}>Pagar pedido</button>}{order.itens.filter((item) => item.tipo === 'DIGITAL').map((item) => <button key={item.id} className="button button-outline" onClick={() => baixarDigital(order, item)} disabled={busy || !['PAGO', 'EM_PREPARACAO', 'ENVIADO', 'ENTREGUE'].includes(order.status)}>Baixar {item.nome}</button>)}</article>)}</div> : <div className="empty-state"><div className="empty-shape"><Icon name="package" size={42} /></div><h3>Nenhum pedido por enquanto.</h3><p>Quando você registrar um pedido, ele aparece aqui.</p><button className="button button-dark" onClick={() => go('home')}>Explorar produtos</button></div>}</section>}
+      {view === 'orders' && <Orders orders={orders} loading={ordersLoading} error={ordersError} onRefresh={loadOrders} onShop={() => go('home')} onPay={startCheckout} onDownload={baixarDigital} busy={busy} isDemo={isDemo} authenticated={Boolean(token)} onLogin={() => { setPendingOrders(true); requireAccount() }} />}
+
     </main>
 
     <footer className="site-footer"><div className="container footer-content"><div><div className="footer-brand">cazuma<span>.</span></div><p>Boas escolhas moram aqui.</p></div><div className="footer-right"><span>Feito para descobrir coisas boas.</span><span>© {new Date().getFullYear()} Cazuma</span></div></div></footer>
