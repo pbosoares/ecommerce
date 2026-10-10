@@ -97,6 +97,7 @@ export default function App() {
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('todos')
   const [view, setView] = useState('home')
+  const [catalogJump, setCatalogJump] = useState(0)
   const [selected, setSelected] = useState(null)
   const [token, setToken] = useState(() => sessionStorage.getItem('cazuma_token') || '')
   const [cart, setCart] = useState(null)
@@ -137,6 +138,13 @@ export default function App() {
   const hasPhysical = cart?.itens?.some((item) => item.tipo === 'FISICO')
 
   const go = (next) => { setView(next); setSelected(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }
+  const openCatalog = (category = 'todos') => {
+    setActiveCategory(category); setSearch(''); setSelected(null); setView('home')
+    setCatalogJump((current) => current + 1)
+  }
+  useEffect(() => {
+    if (catalogJump > 0) document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [catalogJump])
   const rotateOrderKey = () => { const key = crypto.randomUUID(); sessionStorage.setItem('cazuma_order_key', key); setOrderKey(key) }
   const requireAccount = (product = null) => { setPendingProduct(product); setAuthMode('login'); setAuthOpen(true) }
   const perform = async (fn) => {
@@ -224,10 +232,10 @@ export default function App() {
         </div>
       </div>
       <nav className="header-nav container" aria-label="Navegação principal">
-        <button onClick={() => go('home')}><Icon name="menu" size={18} /> Todas as categorias</button>
+        <button onClick={() => openCatalog()}><Icon name="menu" size={18} /> Todas as categorias</button>
         <span className="nav-divider" />
-        <button onClick={() => { setActiveCategory('todos'); go('home') }}>Novidades</button>
-        {categories.slice(0, 4).map((category) => <button key={category.id} onClick={() => { setActiveCategory(category.slug); go('home') }}>{category.nome}</button>)}
+        <button onClick={() => openCatalog()}>Novidades</button>
+        {categories.slice(0, 4).map((category) => <button key={category.id} onClick={() => openCatalog(category.slug)}>{category.nome}</button>)}
         <span className="nav-spacer" />
         <span className="nav-note"><Icon name="pin" size={17} /> Frete calculado no carrinho</span>
       </nav>
@@ -238,7 +246,7 @@ export default function App() {
       {testPayments && <div className="demo-notice container" role="status"><strong>Compra de teste</strong><span>Produtos fictícios, sem cobrança ou entrega real. No pagamento, use o cartão de teste 4242 4242 4242 4242, uma validade futura e qualquer CVC de 3 dígitos.</span></div>}
       {view === 'home' && <>
         <section className="hero container">
-          <div className="hero-copy"><span className="hero-kicker"><span /> A VITRINE DO SEU JEITO</span><h1>Seu próximo achado está <em>por aqui.</em></h1><p>Explore produtos para a vida real, ideias novas e escolhas que fazem sentido para você.</p><button className="button button-dark hero-button" onClick={() => document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' })}>Explorar produtos <Icon name="arrow" size={19} /></button><div className="hero-small-note"><span className="note-line" /> Simples de encontrar. Bom de escolher.</div></div>
+          <div className="hero-copy"><span className="hero-kicker"><span /> A VITRINE DO SEU JEITO</span><h1>Seu próximo achado está <em>por aqui.</em></h1><p>Explore produtos para a vida real, ideias novas e escolhas que fazem sentido para você.</p><button className="button button-dark hero-button" onClick={() => openCatalog()}>Explorar produtos <Icon name="arrow" size={19} /></button><div className="hero-small-note"><span className="note-line" /> Simples de encontrar. Bom de escolher.</div></div>
           <div className="hero-art" aria-hidden="true"><div className="art-circle art-circle-one"/><div className="art-circle art-circle-two"/><div className="art-panel"><span className="art-panel-top">cazuma<span>.</span></span><div className="art-orb"><div /></div><span className="art-panel-bottom">descubra o novo<br />todo dia <span>✳</span></span></div><div className="art-ticket">escolhas que<br /><strong>surpreendem ↗</strong></div><div className="art-star">✳</div></div>
         </section>
         <section className="value-strip container" aria-label="Como funciona"><div><span className="value-icon peach"><Icon name="search" size={23} /></span><span><strong>Explore sem pressa</strong><small>Encontre o que combina com você</small></span></div><div><span className="value-icon lavender"><Icon name="bag" size={23} /></span><span><strong>Escolha com clareza</strong><small>Preços e frete antes do pedido</small></span></div><div><span className="value-icon mint"><Icon name="spark" size={23} /></span><span><strong>De tudo um pouco</strong><small>Produtos físicos e digitais</small></span></div></section>
@@ -249,12 +257,12 @@ export default function App() {
               : visibleProducts.length ? <div className="product-grid">{visibleProducts.map((product) => <ProductCard key={product.id} product={product} onOpen={setSelected} onAdd={addProduct} />)}</div>
                 : <div className="empty-state"><div className="empty-shape"><Icon name="package" size={42} /></div><h3>{search || activeCategory !== 'todos' ? 'Nenhum produto por aqui ainda.' : 'A vitrine está ficando pronta.'}</h3><p>{search || activeCategory !== 'todos' ? 'Tente outra busca ou explore todas as categorias.' : 'Os produtos aparecerão aqui assim que forem cadastrados.'}</p>{(search || activeCategory !== 'todos') && <button className="button button-outline" onClick={() => { setSearch(''); setActiveCategory('todos') }}>Ver todos os produtos</button>}</div>}
         </section>
-        <section className="bottom-banner container"><span className="bottom-emblem">✳</span><div><span className="eyebrow">SEU CANTO DE DESCOBERTAS</span><h2>Tem sempre algo novo esperando por você.</h2></div><button className="button button-white" onClick={() => { setActiveCategory('todos'); setSearch(''); document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' }) }}>Ver catálogo <Icon name="arrow" size={18} /></button></section>
+        <section className="bottom-banner container"><span className="bottom-emblem">✳</span><div><span className="eyebrow">SEU CANTO DE DESCOBERTAS</span><h2>Tem sempre algo novo esperando por você.</h2></div><button className="button button-white" onClick={() => openCatalog()}>Ver catálogo <Icon name="arrow" size={18} /></button></section>
       </>}
 
       {view === 'cart' && <section className="inner-page container"><button className="text-back" onClick={() => go('home')}><Icon name="back" size={18} /> Continuar explorando</button><div className="page-heading"><span className="eyebrow">SUAS ESCOLHAS</span><h1>Meu carrinho<span>.</span></h1><p>Confira tudo antes de registrar seu pedido.</p></div>
         {!token ? <div className="empty-state"><div className="empty-shape"><Icon name="user" size={42} /></div><h3>Entre para ver seu carrinho.</h3><p>Suas escolhas ficam vinculadas à sua conta.</p><button className="button button-dark" onClick={() => requireAccount()}>Entrar ou criar conta</button></div>
-          : !cart?.itens?.length ? <div className="empty-state"><div className="empty-shape"><Icon name="bag" size={42} /></div><h3>Seu carrinho está vazio.</h3><p>Que tal encontrar algo especial na vitrine?</p><button className="button button-dark" onClick={() => go('home')}>Explorar produtos</button></div>
+          : !cart?.itens?.length ? <div className="empty-state"><div className="empty-shape"><Icon name="bag" size={42} /></div><h3>Seu carrinho está vazio.</h3><p>Que tal encontrar algo especial na vitrine?</p><button className="button button-dark" onClick={() => openCatalog()}>Explorar produtos</button></div>
             : <div className="cart-layout"><div className="cart-content"><div className="cart-items">{cart.itens.map((item) => { const product = products.find((entry) => entry.id === item.produtoId) || { nome: item.nome, tipo: item.tipo }; return <div className="cart-item" key={item.produtoId}><ProductVisual product={product} className="cart-visual" /><div className="cart-item-main"><span className="card-category">{item.tipo === 'DIGITAL' ? 'Produto digital' : 'Produto físico'}</span><strong>{item.nome}</strong><span>{money(item.precoUnitario)} cada</span><button className="remove-button" onClick={() => removeItem(item)} disabled={busy}><Icon name="trash" size={15} /> Remover</button></div><div className="cart-item-end"><strong>{money(item.subtotal)}</strong><div className="quantity-control"><button onClick={() => changeQuantity(item, item.quantidade - 1)} disabled={busy} aria-label={`Diminuir quantidade de ${item.nome}`}><Icon name="minus" size={16} /></button><span>{item.quantidade}</span><button onClick={() => changeQuantity(item, item.quantidade + 1)} disabled={busy || (item.tipo === 'FISICO' && item.quantidade >= product.estoque)} aria-label={`Aumentar quantidade de ${item.nome}`}><Icon name="plus" size={16} /></button></div></div></div> })}</div>
               {hasPhysical && <div className="checkout-card"><div className="checkout-title"><span className="checkout-icon"><Icon name="pin" /></span><div><h3>Para onde vamos enviar?</h3><p>Digite seu CEP para consultar o frete.</p></div></div><div className="cep-row"><input inputMode="numeric" maxLength={9} placeholder="00000-000" aria-label="CEP de entrega" value={cep} onChange={(e) => { setCep(e.target.value); setQuote(null) }} /><button className="button button-dark" onClick={calculateShipping} disabled={busy}>Calcular frete</button></div>{quote && <p className="quote-success"><Icon name="check" size={18} /> Frete para {quote.cep}: <strong>{money(quote.frete)}</strong></p>}</div>}
               <div className="checkout-card"><div className="checkout-title"><span className="checkout-icon"><Icon name="package" /></span><div><h3>Dados para o pedido</h3><p>{hasPhysical ? 'Preencha o endereço de entrega.' : 'Produto digital: não precisa de endereço.'}</p></div></div>{hasPhysical && <div className="address-grid">{[['logradouro', 'Rua / avenida'], ['numero', 'Número'], ['complemento', 'Complemento'], ['bairro', 'Bairro'], ['cidade', 'Cidade'], ['uf', 'UF']].map(([key, label]) => <label key={key} className={`address-${key}`}>{label}<input required={key !== 'complemento'} maxLength={{ logradouro: 120, numero: 20, complemento: 120, bairro: 80, cidade: 80, uf: 2 }[key]} value={address[key]} onChange={(e) => setAddress({ ...address, [key]: e.target.value })} placeholder={label} /></label>)}</div>}</div></div>
