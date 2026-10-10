@@ -1,136 +1,157 @@
-# E-commerce
+# Cazuma 🛍️
 
-API Spring Boot com cadastro de usuarios, permissoes e catalogo de produtos fisicos e digitais por categoria. Requer Java 21 ou superior.
+Uma loja online para explorar produtos, montar um carrinho e acompanhar uma compra do começo ao fim.
 
-O frontend React da loja **Cazuma** fica em [`frontend/`](frontend/README.md). Para abrir a loja, execute `npm install` e `npm run dev` nessa pasta e visite `http://localhost:5173/`; abrir o arquivo `index.html` diretamente deixa os modulos React sem o servidor Vite. A API precisa estar em `localhost:8080` para carregar o catalogo e usar a conta e o carrinho.
+A Cazuma reúne uma interface em React, uma API em Java e as integrações necessárias para colocar o projeto no ar. Além do catálogo, o trabalho inclui autenticação, controle de estoque, pagamento de teste, e-mails automáticos e publicação em uma VPS.
 
-Para instalar em uma VPS com Docker e HTTPS, veja [`deploy/README.md`](deploy/README.md).
+**[Conheça a loja](https://pablo-soares.tech/)** · **[Acompanhe as automações](https://github.com/pbosoares/ecommerce/actions)**
 
-## Demonstracao sem PostgreSQL
+![Validações e publicação na VPS](https://github.com/pbosoares/ecommerce/actions/workflows/ci-cd.yml/badge.svg)
 
-Para apresentar o projeto ou simular uma compra, inicie a API no perfil `demo`:
+## Experimente a loja
+
+O site está em **modo de demonstração**. São cinco produtos fictícios nas categorias Tecnologia, Casa e Estilo. Não há cobrança nem entrega real.
+
+1. Crie uma conta com um e-mail seu para receber as boas-vindas.
+2. Escolha um produto e adicione ao carrinho.
+3. Informe um CEP, consulte o frete e preencha o endereço.
+4. No Stripe, use o cartão de teste `4242 4242 4242 4242`, uma validade futura e qualquer CVC de três dígitos.
+5. Volte à loja e acompanhe a confirmação em **Meus pedidos**.
+
+Os dados do cartão são preenchidos na página do Stripe. Use apenas dados fictícios no endereço desta demonstração. As instruções do cartão também aparecem na loja e na [documentação de testes do Stripe](https://docs.stripe.com/testing).
+
+Os e-mails de boas-vindas e de atualização do pedido são enviados pela Resend. O primeiro envio costuma acontecer em até um minuto; se houver falha, a aplicação mantém a mensagem na fila para tentar novamente.
+
+## O que já funciona
+
+| Na experiência de quem compra | Por trás da aplicação |
+| --- | --- |
+| Cadastro e login | Senhas protegidas com Argon2 e autenticação JWT |
+| Busca e filtros por categoria | Catálogo de produtos físicos e digitais |
+| Carrinho e consulta de frete | Cálculo de valores no servidor e reserva de estoque |
+| Checkout de teste | Integração Stripe com confirmação por webhook assinado |
+| Histórico de pedidos | Cada cliente acessa apenas seus próprios pedidos |
+| E-mails automáticos | Fila persistida com novas tentativas de envio |
+
+A API também permite que administradores gerenciem produtos, categorias e etapas do pedido. Para produtos digitais, existe upload de arquivo privado e download autorizado após o pagamento. A vitrine pública atual usa apenas produtos físicos fictícios. Ainda não há um painel visual de administração.
+
+## Como as peças se conectam
+
+O React apresenta a loja e conversa com a API Spring Boot. A API guarda os dados no PostgreSQL, cria sessões de pagamento no Stripe e agenda os e-mails enviados pela Resend.
+
+Na VPS Hostinger, o Docker Compose organiza os serviços. O Caddy serve o frontend e encaminha as chamadas para a API com HTTPS.
+
+<details>
+<summary>Ver a visão ilustrativa do projeto</summary>
+
+A imagem abaixo foi criada para apresentar a arquitetura. A vitrine é uma ilustração, não uma captura da interface publicada.
+
+<img src="docs/cazuma-linkedin.png" alt="Arquitetura da Cazuma com React, Spring Boot, PostgreSQL, GitHub Actions, Hostinger, Docker, Caddy, Stripe e Resend" width="700" />
+
+</details>
+
+| Tecnologia | Papel no projeto |
+| --- | --- |
+| Java 21 e Spring Boot | API, regras de negócio e integrações |
+| React e Vite | Interface da loja e compilação do frontend |
+| PostgreSQL e Flyway | Dados persistentes e evolução do banco |
+| Spring Security, JWT e Argon2 | Autenticação, permissões e proteção das senhas |
+| Stripe | Checkout e eventos de pagamento em modo de teste |
+| Resend | Boas-vindas e notificações dos pedidos |
+| Docker Compose e Caddy | Serviços da aplicação e HTTPS |
+| GitHub Actions e Hostinger | Validação do código e deploy automático na VPS |
+
+## Decisões que fizeram diferença
+
+**O pagamento precisa de confirmação.** O retorno do navegador à loja não marca o pedido como pago. A API espera o webhook do Stripe e confere a assinatura, a sessão, a moeda e o valor recebido.
+
+**O estoque acompanha o pedido.** A reserva acontece ao registrar a compra, com bloqueio no banco. Cancelamentos permitidos e expirações liberam essa reserva. Chaves de idempotência ajudam a evitar pedidos duplicados quando uma requisição é repetida.
+
+**O e-mail pode esperar sem travar o cadastro.** A conta e a notificação de boas-vindas são gravadas na mesma transação. O envio acontece em segundo plano, com novas tentativas em caso de indisponibilidade da Resend.
+
+**A publicação passa por validações.** O GitHub Actions executa os testes, compila o frontend e valida as imagens Docker. Depois, publica o commit testado, preserva os volumes e confere a saúde da aplicação. O processo também faz uma cópia do banco e dos arquivos digitais antes de atualizar uma instalação ativa.
+
+Essas escolhas dão ao projeto exemplos concretos de integração entre frontend, backend, banco de dados e infraestrutura.
+
+## Rode no seu computador 💻
+
+Para conhecer o projeto sem configurar PostgreSQL ou serviços externos, use o perfil local `demo`.
+
+Você precisa de **Java 21**, **Node.js 22** e **npm**. O Maven Wrapper já está no repositório.
+
+### 1. Baixe o projeto
+
+```bash
+git clone https://github.com/pbosoares/ecommerce.git
+cd ecommerce
+```
+
+### 2. Inicie a API
+
+No Windows, com PowerShell:
 
 ```powershell
 .\mvnw.cmd "-Dspring-boot.run.profiles=demo" spring-boot:run
 ```
 
-Em outro terminal, inicie o frontend com `npm install` e `npm run dev` dentro de `frontend/`. Abra `http://localhost:5173/`. O catalogo sera preenchido com seis produtos ficticios, fisicos e digitais, em quatro categorias. Crie uma conta ficticia na loja, adicione um produto ao carrinho, consulte o frete com um CEP e registre um pedido. O pedido fica em `AGUARDANDO_PAGAMENTO`; nao ha cobranca nem entrega digital. O banco H2 deste perfil fica apenas em memoria e todo o conteudo, inclusive contas e pedidos de teste, desaparece quando a API e encerrada. O perfil so escuta em `127.0.0.1` e nao deve ser usado como ambiente publico. Fora de `demo`, nenhum produto e inserido automaticamente.
+No Linux ou macOS:
 
-## Executar e testar
-
-- Configure `DB_PASSWORD` para o PostgreSQL local (`localhost:5432/ecommerce`, usuario `postgres`).
-- Configure `JWT_SECRET` com pelo menos 32 bytes aleatorios codificados em Base64. Sem uma chave valida, a aplicacao nao inicia. Nao coloque a chave no Git. No PowerShell, gere uma chave para a sessao atual com:
-
-  ```powershell
-  $jwtBytes = New-Object byte[] 32
-  $jwtRandom = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-  $jwtRandom.GetBytes($jwtBytes)
-  $jwtRandom.Dispose()
-  $env:JWT_SECRET = [Convert]::ToBase64String($jwtBytes)
-  ```
-
-  Mantenha a mesma chave entre reinicios para preservar a validade dos tokens existentes; trocar a chave invalida esses tokens.
-- Inicie com `./mvnw spring-boot:run` (Windows: `.\mvnw.cmd spring-boot:run`).
-- Execute `./mvnw test` (Windows: `.\mvnw.cmd test`). Os testes usam H2 em memoria e nao alteram o PostgreSQL.
-- Com as dependencias ja no cache, acrescente `-o` para testar offline.
-
-O Lombok esta configurado como processador de anotacoes explicitamente, inclusive para JDK 23+.
-
-## Cadastro e login
-
-`POST /usuarios` recebe `nome`, `email` e `senha`; a senha e armazenada como hash Argon2.
-
-`POST /auth/login` recebe:
-
-```json
-{"email":"ana@example.com","senha":"senha-segura"}
+```bash
+bash mvnw -Dspring-boot.run.profiles=demo spring-boot:run
 ```
 
-Retorna `200` com `accessToken`, `tokenType` (`Bearer`) e `expiresIn` (`900`, em segundos), sem senha ou hash. Credenciais incorretas retornam `401`; campos invalidos retornam `400`.
-O e-mail e comparado exatamente como no cadastro.
+### 3. Abra outro terminal e inicie o frontend
 
-## Endpoints protegidos
-
-`POST /usuarios`, `POST /auth/login`, `GET /categorias` e `GET /produtos` (inclusive por ID) sao publicos. Apenas administradores podem criar categorias e criar, atualizar ou excluir produtos. Os demais endpoints exigem autenticacao:
-
-```http
-Authorization: Bearer <accessToken>
+```bash
+cd frontend
+npm ci
+npm run dev
 ```
 
-O JWT usa HS256, identifica o usuario pelo ID (`sub`) e valida assinatura, emissor e expiracao. A validade padrao e de 15 minutos (`app.jwt.ttl-seconds=900`). Tokens ausentes, invalidos ou expirados retornam `401`. A API nao cria sessao; cada requisicao precisa do token. Basic Auth e formulario de login estao desativados.
+Acesse **http://localhost:5173/**. A API atende em **http://localhost:8080/**.
 
-O cadastro publico sempre cria um `CLIENTE`, mesmo se o corpo da requisicao tentar enviar `papel: ADMIN`. Contas antigas sem papel sao tratadas como clientes. Para provisionar o primeiro administrador, cadastre-o normalmente e execute, com acesso administrativo ao PostgreSQL:
+O perfil local cria seis produtos fictícios em quatro categorias, incluindo um exemplo digital. Você pode testar cadastro, carrinho, frete e criação de pedidos. Nesse perfil, o fluxo não abre o Stripe nem confirma pagamentos automaticamente. Sem configurar a Resend, os e-mails ficam pendentes.
 
-```sql
-UPDATE usuario SET papel = 'ADMIN' WHERE email = 'admin@exemplo.com';
+O banco H2 fica em memória. Os dados desaparecem ao encerrar a API, e esse perfil aceita conexões apenas no computador local.
+
+## Testes e publicação 🚀
+
+A suíte atual tem **44 testes automatizados**, incluindo autenticação, permissões, catálogo, carrinho, pedidos, webhooks, e-mails e regras dos ambientes de execução. Os testes usam H2 e não alteram o banco da loja publicada.
+
+No Windows:
+
+```powershell
+.\mvnw.cmd --batch-mode --no-transfer-progress verify
 ```
 
-Substitua o e-mail pelo da conta desejada. Faca login novamente apos a promocao; o papel fica no JWT assinado. Uma alteracao de papel passa a valer para novos tokens; tokens anteriores expiram em ate 15 minutos. Nao ha refresh token nem revogacao individual. Use HTTPS fora do ambiente local.
+No Linux ou macOS:
 
-Os testes cobrem login com Argon2, validacao de entrada, CRUD com JWT, bloqueio sem token, adulteracao, assinatura incorreta, emissor incorreto, expiracao e ausencia de sessao.
-
-## Categorias no catalogo
-
-O administrador cria uma categoria com `POST /categorias`:
-
-```json
-{"nome":"Eletronicos","slug":"eletronicos"}
+```bash
+bash mvnw --batch-mode --no-transfer-progress verify
 ```
 
-O `slug` e unico e usa letras minusculas, numeros e hifens. `GET /categorias` fornece a lista para montar as abas. Produtos novos precisam do ID de uma categoria:
+Para conferir a compilação do frontend, execute `npm run build` na pasta `frontend`.
 
-```json
-{"nome":"Fone","descricao":"Sem fio","preco":99.90,"estoque":5,"categoriaId":1,"tipo":"FISICO"}
-```
+| Perfil | Quando usar |
+| --- | --- |
+| `demo` | Apresentação local com banco descartável, sem checkout Stripe |
+| `sandbox` | Demonstração na VPS com PostgreSQL, HTTPS, Stripe teste e Resend |
+| `prod` | Configuração para pagamentos reais, com credenciais e preparação próprias |
 
-Use `POST /produtos` para criar e `PUT /produtos/{id}` para atualizar, ambos com o corpo acima. `GET /produtos?categoria=eletronicos` lista apenas os produtos da categoria; `GET /produtos` lista todos. Categorias desconhecidas retornam uma lista vazia. Produtos cadastrados antes desta mudanca permanecem visiveis na lista geral sem categoria; um administrador pode atribuir categoria ao atualiza-los.
+A loja pública usa `sandbox`. Ele aceita apenas chaves Stripe de teste. O perfil `prod` exige uma chave de pagamento real. Segredos ficam fora do repositório.
 
-## Tipos de produto
+Os detalhes de variáveis, acesso à VPS, backups e publicação estão no [guia de deploy](deploy/README.md).
 
-O catalogo nao depende de um fornecedor. `tipo` pode ser `FISICO` (padrao para produtos antigos) ou `DIGITAL`.
+## Documentação para ir além
 
-- Campos comuns: `nome`, `descricao`, `preco`, `categoriaId`, `sku` opcional e unico, ate dez URLs HTTP(S) em `imagens` e ate vinte pares em `atributos` (por exemplo, cor/tamanho ou idioma/formato).
-- Produtos fisicos exigem `estoque`. Informe `pesoGramas` para permitir a cotacao de frete; `alturaCm`, `larguraCm` e `comprimentoCm` continuam opcionais. Sem peso, a cotacao e o fechamento do pedido retornam `422`.
-- Produtos digitais nao usam estoque nem dimensoes de envio. O administrador envia o arquivo com `POST /produtos/{id}/arquivo` (`multipart/form-data`, campo `arquivo`, ate 20 MB). O arquivo fica fora da pasta publica, em `DIGITAL_STORAGE_PATH`, e so pode ser baixado pelo comprador depois da confirmacao do pagamento.
+* [Referência da API](docs/referencia-api.md): endpoints, exemplos de requisições, autenticação e regras dos pedidos.
+* [Frontend](frontend/README.md): execução, integração com a API e compilação.
+* [Deploy na VPS](deploy/README.md): ambientes, Docker, HTTPS, Stripe, Resend e GitHub Actions.
 
-Em producao, as imagens sao URLs HTTP(S) cadastradas pelo administrador; a API ainda nao recebe arquivos nem hospeda imagens. As ilustracoes locais em `frontend/public/demo/` servem apenas ao catalogo ficticio. O frontend React fica separado da API Spring Boot.
+## Próximos passos
 
-## Carrinho e pedidos
+O projeto já permite demonstrar uma compra completa com pagamento de teste. Para continuar evoluindo, os próximos passos são um painel administrativo, recuperação de senha e melhor acompanhamento de falhas e disponibilidade.
 
-Todas as rotas abaixo exigem `Authorization: Bearer <accessToken>`. O usuario acessa somente seu proprio carrinho e seus pedidos.
+O frete atual usa tarifas da própria loja, sem integração com transportadoras. Também não há estorno automático. Uma operação comercial real ainda precisa de validação operacional, monitoramento e testes de restauração dos backups.
 
-- `GET /carrinho` retorna itens e subtotal calculado pelos precos atuais do catalogo.
-- `POST /carrinho/itens` recebe `{"produtoId":1,"quantidade":2}` e adiciona a quantidade ao item.
-- `PUT /carrinho/itens/1` recebe `{"quantidade":3}` e define a quantidade do produto 1.
-- `DELETE /carrinho/itens/1` remove o produto 1 do carrinho.
-- `POST /pedidos` transforma o carrinho em pedido e o esvazia. `GET /pedidos` e `GET /pedidos/{id}` consultam o historico do comprador.
-
-Se houver algum produto fisico, `POST /pedidos` exige endereco:
-
-```json
-{"entrega":{"cep":"01001000","logradouro":"Praca da Se","numero":"1","bairro":"Se","cidade":"Sao Paulo","uf":"SP"}}
-```
-
-Antes de finalizar, `POST /frete/cotacoes` com `{"cep":"01001000"}` retorna o peso dos itens fisicos, subtotal, frete e total do carrinho atual. Itens digitais nao entram no peso. O valor e apenas uma consulta: o servidor recalcula tudo ao criar o pedido. `POST /pedidos` usa o CEP do endereco de entrega, grava o frete e o total e deixa o pedido em `AGUARDANDO_PAGAMENTO`. Pedidos somente digitais tem frete zero e total igual ao subtotal. Se algum produto fisico nao tiver peso, a API retorna `422` sem criar o pedido nem esvaziar o carrinho.
-
-O frete padrao da loja e **R$ 15,00** para qualquer CEP e peso de produtos fisicos, configurado por `app.frete.valor-padrao`. O administrador pode criar tarifas especificas em `POST /frete/faixas` para substituir esse padrao em determinadas faixas de CEP e peso:
-
-```json
-{"cepInicio":"00000000","cepFim":"09999999","pesoMinimoGramas":0,"pesoMaximoGramas":1000,"valor":15.00}
-```
-
-`GET /frete/faixas` lista e `DELETE /frete/faixas/{id}` remove as faixas. As duas extremidades de CEP sao inclusivas; a faixa de peso aceita `pesoMinimoGramas < peso <= pesoMaximoGramas`. Faixas sobrepostas sao recusadas; fora das faixas cadastradas vale a tarifa padrao. A tarifa propria da loja nao consulta os Correios, nao promete preco ou prazo oficial e nao gera etiqueta. Itens guardam copia do nome, SKU, tipo e preco para preservar o historico.
-
-## Pagamento, estoque e entrega
-
-Ao criar um pedido, o servidor recalcula os precos e o frete e reserva o estoque fisico sob bloqueio de banco. Estoque insuficiente impede a compra. Envie um `Idempotency-Key` unico de 8 a 80 caracteres em `POST /pedidos` para que uma repeticao da mesma tentativa retorne o pedido original, sem criar outro. O frontend gera e conserva essa chave durante tentativas de envio. Alterar o carrinho inicia outra tentativa. Um pedido sem sessao de pagamento expira depois de 30 minutos; cancelamento antes do checkout e expiracao liberam a reserva uma unica vez.
-
-`POST /pedidos/{id}/checkout` cria ou devolve a sessao Stripe Checkout de um pedido do comprador. O frontend redireciona para a URL retornada. O retorno do navegador nao confirma pagamento: apenas `POST /webhooks/stripe`, com assinatura Stripe valida, pode mudar o pedido para `PAGO`, depois de conferir sessao, moeda BRL e valor. O webhook de expiracao libera o estoque. O administrador consulta `GET /admin/pedidos` e avanca `PATCH /pedidos/{id}/status` de `PAGO` para `EM_PREPARACAO`, `ENVIADO` e `ENTREGUE`. Nao ha estorno automatico nem integracao de etiqueta/rastreio.
-
-Para baixar um arquivo digital pago, o comprador usa `GET /pedidos/{pedidoId}/itens/{itemId}/download`. A API confere a identidade, o pedido e o pagamento; o arquivo nunca e exposto como URL publica. A troca do arquivo do produto preserva o arquivo associado a pedidos anteriores. A remocao fisica dos arquivos antigos requer uma politica de retencao/backup antes de operar em producao.
-
-Cada mudanca de estado gera uma notificacao persistida. O Resend envia por HTTPS em segundo plano, com chave de idempotencia por notificacao e novas tentativas apos falhas. Configure `RESEND_API_KEY` e `EMAIL_FROM` de um dominio verificado; sem isso, os e-mails ficam pendentes. Nao inclua chaves no repositorio.
-
-Para usar `prod`, configure tambem `DB_PASSWORD`, `JWT_SECRET`, `STRIPE_SECRET_KEY` (chave live), `STRIPE_WEBHOOK_SECRET`, `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL` (HTTPS) e `DIGITAL_STORAGE_PATH` privado e persistente. Cadastre no Stripe o endpoint HTTPS `/webhooks/stripe` para os eventos `checkout.session.completed`, `checkout.session.async_payment_succeeded` e `checkout.session.expired`. O perfil `demo` continua com produtos ficticios e simulacao sem cobranca; seus pedidos nao ficam pagos automaticamente. Em `prod`, Flyway aplica migracoes e o Hibernate valida o esquema sem altera-lo automaticamente.
-
-A API limita requisicoes por IP em memoria (login/cadastro: 10/min; leitura: 600/min; demais: 120/min) e valida tamanhos dos principais campos. Em varias instancias, use um limitador compartilhado no proxy. Antes de vender, ainda sao necessarios HTTPS no proxy, backup e restauracao testados, monitoramento/alertas, testes com credenciais Stripe/Resend reais e uma revisao de seguranca de producao. Os testes automatizados nao garantem que o site seja inviolavel.
+Projeto de **[Pablo Soares](https://github.com/pbosoares)**. Fique à vontade para explorar o código e experimentar a loja.

@@ -15,26 +15,26 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Validate deployment script
+      - name: Validar script de publicação
         run: bash -n deploy/deploy.sh
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - name: Test and package API
+      - name: Testar e empacotar API
         run: bash mvnw --batch-mode --no-transfer-progress verify
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Build frontend
+      - name: Compilar frontend
         working-directory: frontend
         run: |
           npm ci
           npm run build
-      - name: Validate container builds
+      - name: Validar imagens Docker
         run: |
           docker build -t ecommerce-api:ci .
           docker build -f frontend/Dockerfile -t ecommerce-web:ci .
@@ -57,7 +57,7 @@ jobs:
       VPS_PATH: ${{ vars.VPS_PATH }}
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare SSH
+      - name: Preparar acesso SSH
         shell: bash
         run: |
           set -euo pipefail
@@ -71,13 +71,13 @@ jobs:
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
-      - name: Send tested source and deploy
+      - name: Publicar versão testada na VPS
         shell: bash
         run: |
           set -euo pipefail
           git archive --format=tar.gz -o release.tar.gz HEAD
           scp -o BatchMode=yes -o StrictHostKeyChecking=yes -P "$VPS_PORT" release.tar.gz "$VPS_USER@$VPS_HOST:$VPS_PATH/release-$GITHUB_SHA.tar.gz"
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "set -eu; cd '$VPS_PATH'; tar -xOf 'release-$GITHUB_SHA.tar.gz' deploy/deploy.sh > '.deploy-$GITHUB_SHA.sh'; bash '.deploy-$GITHUB_SHA.sh' '$VPS_PATH' '$GITHUB_SHA' < /dev/null; rm -f '.deploy-$GITHUB_SHA.sh'"
-      - name: Remove SSH credentials
+      - name: Remover credenciais temporárias
         if: always()
         run: rm -f ~/.ssh/id_ed25519 ~/.ssh/known_hosts
