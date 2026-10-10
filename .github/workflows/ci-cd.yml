@@ -77,7 +77,7 @@ jobs:
           set -euo pipefail
           git archive --format=tar.gz -o release.tar.gz HEAD
           scp -o BatchMode=yes -o StrictHostKeyChecking=yes -P "$VPS_PORT" release.tar.gz "$VPS_USER@$VPS_HOST:$VPS_PATH/release-$GITHUB_SHA.tar.gz"
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "cd '$VPS_PATH' && tar -xOf 'release-$GITHUB_SHA.tar.gz' deploy/deploy.sh | bash -s -- '$VPS_PATH' '$GITHUB_SHA'"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "set -eu; cd '$VPS_PATH'; tar -xOf 'release-$GITHUB_SHA.tar.gz' deploy/deploy.sh > '.deploy-$GITHUB_SHA.sh'; bash '.deploy-$GITHUB_SHA.sh' '$VPS_PATH' '$GITHUB_SHA' < /dev/null; rm -f '.deploy-$GITHUB_SHA.sh'"
       - name: Remove SSH credentials
         if: always()
         run: rm -f ~/.ssh/id_ed25519 ~/.ssh/known_hosts
