@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: ${APP_PROFILE:-prod}
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/ecommerce
       SPRING_DATASOURCE_USERNAME: ecommerce
       DIGITAL_STORAGE_PATH: /data/digital
