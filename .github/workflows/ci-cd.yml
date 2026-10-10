@@ -38,6 +38,8 @@ jobs:
         run: |
           docker build -t ecommerce-api:ci .
           docker build -f frontend/Dockerfile -t ecommerce-web:ci .
+      - name: Validar configuração do servidor web
+        run: docker run --rm -e SHOP_DOMAIN=localhost ecommerce-web:ci caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
   deploy:
     needs: ci
